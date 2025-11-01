@@ -1,0 +1,48 @@
+{
+  "project_info": {
+    "project_number": "920202245192",
+    "project_id": "saitronics-billing",
+    "storage_bucket": "saitronics-billing.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:920202245192:android:7e077699ab161c1ab9147d",
+        "android_client_info": {
+          "package_name": "com.example.saitronics_billing"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOd6DNI55VjWj2yCydwKOib0SsRxRhi64"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:920202245192:android:f6dff4d95ec9af00b9147d",
+        "android_client_info": {
+          "package_name": "com.saitronics.billing"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBOd6DNI55VjWj2yCydwKOib0SsRxRhi64"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
