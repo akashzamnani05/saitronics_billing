@@ -190,6 +190,47 @@ class FirebaseService {
     }
   }
 
+
+  static Future<void> migrateParties() async {
+  final parties = await _firestore.collection('parties').get();
+  
+  for (var doc in parties.docs) {
+    await doc.reference.update({
+      'balance': 0.0,
+      'transactionHistory': [],
+    });
+  }
+}
+
+  static Future<void> updatePartyBalance(
+  String partyId,
+  double amount,
+  String invoiceNumber,
+  {required bool isCredit}
+) async {
+  final partyRef = _firestore.collection('parties').doc(partyId);
+  
+  await _firestore.runTransaction((transaction) async {
+    final partyDoc = await transaction.get(partyRef);
+    
+    if (!partyDoc.exists) throw Exception('Party not found');
+    
+    final currentBalance = partyDoc.data()?['balance'] ?? 0.0;
+    final currentHistory = List<String>.from(partyDoc.data()?['transactionHistory'] ?? []);
+    
+    final newBalance = currentBalance + amount;
+    final historyEntry = '${isCredit ? '+' : '-'}₹${amount.abs().toStringAsFixed(2)} - Invoice: $invoiceNumber';
+    
+    currentHistory.add(historyEntry);
+    
+    transaction.update(partyRef, {
+      'balance': newBalance,
+      'transactionHistory': currentHistory,
+      'updatedAt': FieldValue.serverTimestamp(),
+    });
+  });
+}
+
   // ========== PURCHASE INVOICE OPERATIONS ==========
 
   // Create Purchase Invoice and update inventory
@@ -236,6 +277,28 @@ class FirebaseService {
       }).toList();
     });
   }
+
+
+
+// Delete Purchase Invoice
+static Future<String> deletePurchaseInvoice(String id) async {
+  try {
+    await _purchaseInvoicesCollection.doc(id).delete();
+    return 'Purchase invoice deleted successfully';
+  } catch (e) {
+    return 'Error deleting purchase invoice: $e';
+  }
+}
+
+// Delete Sales Invoice
+static Future<String> deleteSalesInvoice(String id) async {
+  try {
+    await _salesInvoicesCollection.doc(id).delete();
+    return 'Sales invoice deleted successfully';
+  } catch (e) {
+    return 'Error deleting sales invoice: $e';
+  }
+}
 
   // ========== SALES INVOICE OPERATIONS ==========
 

@@ -1,5 +1,3 @@
-
-
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class Party {
@@ -12,6 +10,8 @@ class Party {
   final String phone;
   final DateTime createdAt;
   final DateTime updatedAt;
+  final double balance; // positive = party owes us, negative = we owe party
+  final List<String> transactionHistory; // stores invoice numbers with amounts
 
   Party({
     required this.id,
@@ -23,6 +23,8 @@ class Party {
     required this.phone,
     required this.createdAt,
     required this.updatedAt,
+    this.balance = 0.0,
+    this.transactionHistory = const [],
   });
 
   Map<String, dynamic> toMap() {
@@ -36,6 +38,8 @@ class Party {
       'phone': phone,
       'createdAt': Timestamp.fromDate(createdAt),
       'updatedAt': Timestamp.fromDate(updatedAt),
+      'balance': balance,
+      'transactionHistory': transactionHistory,
     };
   }
 
@@ -50,6 +54,8 @@ class Party {
       phone: map['phone'] ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       updatedAt: (map['updatedAt'] as Timestamp).toDate(),
+      balance: (map['balance'] ?? 0.0).toDouble(),
+      transactionHistory: List<String>.from(map['transactionHistory'] ?? []),
     );
   }
 
@@ -63,6 +69,8 @@ class Party {
     String? phone,
     DateTime? createdAt,
     DateTime? updatedAt,
+    double? balance,
+    List<String>? transactionHistory,
   }) {
     return Party(
       id: id ?? this.id,
@@ -74,6 +82,27 @@ class Party {
       phone: phone ?? this.phone,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      balance: balance ?? this.balance,
+      transactionHistory: transactionHistory ?? this.transactionHistory,
     );
+  }
+
+  /// Returns a formatted string showing the balance status
+  String getBalanceStatus() {
+    if (balance > 0) {
+      return 'To Receive: ₹${balance.toStringAsFixed(2)}';
+    } else if (balance < 0) {
+      return 'To Pay: ₹${balance.abs().toStringAsFixed(2)}';
+    } else {
+      return 'Settled';
+    }
+  }
+
+  /// Returns color code for balance display
+  /// Green for positive (money to receive), Red for negative (money to pay)
+  String getBalanceColor() {
+    if (balance > 0) return 'green';
+    if (balance < 0) return 'red';
+    return 'grey';
   }
 }

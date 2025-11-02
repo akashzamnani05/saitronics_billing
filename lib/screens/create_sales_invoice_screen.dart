@@ -23,22 +23,29 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
   final List<_InvoiceLineItem> _lineItems = [];
   bool _isLoading = false;
   double _discount = 0.0;
+  bool _isMarkedAsPaid = false;
+
+  
+
+  // NEW: Search controller for party dialog
+  final _partySearchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
     _generateInvoiceNumber();
+    
   }
 
   void _generateInvoiceNumber() async {
-  setState(() => _invoiceNumberController.text = 'Loading...');
-  final invoiceNumber = await FirebaseService.generateSalesInvoiceNumber();
-  setState(() {
-    _invoiceNumberController.text = invoiceNumber;
-  });
-}
+    setState(() => _invoiceNumberController.text = 'Loading...');
+    final invoiceNumber = await FirebaseService.generateSalesInvoiceNumber();
+    setState(() {
+      _invoiceNumberController.text = invoiceNumber;
+    });
+  }
 
-Future<void> _downloadPdf(SalesInvoice invoice) async {
+  Future<void> _downloadPdf(SalesInvoice invoice) async {
     if (_selectedParty == null) return;
 
     try {
@@ -46,7 +53,7 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
         invoice,
         _selectedParty!,
         paidAmount: invoice.grandTotal,
-        logoPath: 'assets/images/logo.jpg', 
+        logoPath: 'assets/images/logo.jpg',
       );
     } catch (e) {
       if (mounted) {
@@ -60,6 +67,7 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
   @override
   void dispose() {
     _invoiceNumberController.dispose();
+    _partySearchController.dispose(); // <-- Important
     super.dispose();
   }
 
@@ -244,54 +252,63 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
 
             // Totals Section
             if (_lineItems.isNotEmpty)
-  Container(
-    padding: const EdgeInsets.all(16),
-    color: Colors.grey[50],
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _buildTotalRow('Subtotal (Excl. GST)', _subtotal, false),
-        const SizedBox(height: 8),
-        _buildTotalRow('CGST', _totalGST / 2, false),
-        const SizedBox(height: 4),
-        _buildTotalRow('SGST', _totalGST /2, false),
-        const Divider(),
+              Container(
+                padding: const EdgeInsets.all(16),
+                color: Colors.grey[50],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _buildTotalRow('Subtotal (Excl. GST)', _subtotal, false),
+                    const SizedBox(height: 8),
+                    _buildTotalRow('CGST', _totalGST / 2, false),
+                    const SizedBox(height: 4),
+                    _buildTotalRow('SGST', _totalGST / 2, false),
+                    const Divider(),
 
-        // 👇 Add discount input field
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text(
-              'Discount (₹)',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            SizedBox(
-              width: 120,
-              child: TextField(
-                decoration: const InputDecoration(
-                  hintText: '0.00',
-                  contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                    // Discount input field
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Discount (₹)',
+                          style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        ),
+                        SizedBox(
+                          width: 120,
+                          child: TextField(
+                            decoration: const InputDecoration(
+                              hintText: '0.00',
+                              contentPadding: EdgeInsets.symmetric(horizontal: 8),
+                            ),
+                            keyboardType: TextInputType.number,
+                            onChanged: (val) {
+                              setState(() {
+                                _discount = double.tryParse(val) ?? 0;
+                              });
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    CheckboxListTile(
+                      title: const Text('Mark as Paid'),
+                      value: _isMarkedAsPaid,
+                      onChanged: (value) {
+                        setState(() {
+                          _isMarkedAsPaid = value ?? false;
+                        });
+                      },
+                    ),
+                                        const Divider(),
+
+                    _buildTotalRow(
+                      'Grand Total (Incl. GST)',
+                      (_grandTotal - _discount).clamp(0, double.infinity),
+                      true,
+                    ),
+                  ],
                 ),
-                keyboardType: TextInputType.number,
-                onChanged: (val) {
-                  setState(() {
-                    _discount = double.tryParse(val) ?? 0;
-                  });
-                },
               ),
-            ),
-          ],
-        ),
-        const Divider(),
-
-        _buildTotalRow(
-          'Grand Total (Incl. GST)',
-          (_grandTotal - _discount).clamp(0, double.infinity),
-          true,
-        ),
-      ],
-    ),
-  ),
           ],
         ),
       ),
@@ -327,7 +344,7 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
                         ),
                       )
                     : Text(
-                        'Save Sales Invoice - ₹${_grandTotal.toStringAsFixed(2)}',
+                        'Save Sales Invoice - ₹${(_grandTotal - _discount).toStringAsFixed(2)}',
                         style: const TextStyle(fontSize: 16),
                       ),
               ),
@@ -368,60 +385,68 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
   }
 
   Widget _buildItemRow(int index) {
-    final item = _lineItems[index];
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      decoration: BoxDecoration(
-        border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
-      ),
-      child: Row(
-        children: [
-          SizedBox(width: 40, child: Text('${index + 1}')),
-          Expanded(
-            flex: 3,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.itemName, style: const TextStyle(fontWeight: FontWeight.bold)),
+  final item = _lineItems[index];
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+    decoration: BoxDecoration(
+      border: Border(bottom: BorderSide(color: Colors.grey[300]!)),
+    ),
+    child: Row(
+      children: [
+        SizedBox(width: 40, child: Text('${index + 1}')),
+        Expanded(
+          flex: 3,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(item.itemName, style: const TextStyle(fontWeight: FontWeight.bold)),
+              // NEW: Show description if available
+              if (item.description.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  item.description,
+                  style: TextStyle(fontSize: 12, color: Colors.grey[600], fontStyle: FontStyle.italic),
+                ),
               ],
-            ),
+            ],
           ),
-          SizedBox(width: 80, child: Text(item.hsnCode)),
-          SizedBox(
-            width: 60,
-            child: Text('${item.quantity.toStringAsFixed(0)}'),
+        ),
+        SizedBox(width: 80, child: Text(item.hsnCode)),
+        SizedBox(
+          width: 60,
+          child: Text('${item.quantity.toStringAsFixed(0)}'),
+        ),
+        SizedBox(
+          width: 80,
+          child: Text('₹${item.subtotal.toStringAsFixed(2)}'),
+        ),
+        SizedBox(
+          width: 60,
+          child: Text('${item.gstPercent.toStringAsFixed(0)}%'),
+        ),
+        SizedBox(
+          width: 100,
+          child: Text(
+            '₹${item.total.toStringAsFixed(2)}',
+            textAlign: TextAlign.right,
+            style: const TextStyle(fontWeight: FontWeight.bold),
           ),
-          SizedBox(
-            width: 80,
-            child: Text('₹${item.subtotal.toStringAsFixed(2)}'),
+        ),
+        SizedBox(
+          width: 40,
+          child: IconButton(
+            icon: const Icon(Icons.delete, color: Colors.red, size: 20),
+            onPressed: () {
+              setState(() {
+                _lineItems.removeAt(index);
+              });
+            },
           ),
-          SizedBox(
-            width: 60,
-            child: Text('${item.gstPercent.toStringAsFixed(0)}%'),
-          ),
-          SizedBox(
-            width: 100,
-            child: Text(
-              '₹${item.total.toStringAsFixed(2)}',
-              textAlign: TextAlign.right,
-              style: const TextStyle(fontWeight: FontWeight.bold),
-            ),
-          ),
-          SizedBox(
-            width: 40,
-            child: IconButton(
-              icon: const Icon(Icons.delete, color: Colors.red, size: 20),
-              onPressed: () {
-                setState(() {
-                  _lineItems.removeAt(index);
-                });
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildTotalRow(String label, double amount, bool isBold) {
     return Row(
@@ -445,54 +470,124 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
     );
   }
 
+  // ======================================================
+  // PARTY SELECTION DIALOG WITH SEARCH
+  // ======================================================
   void _showPartySelectionDialog() {
+  _partySearchController.clear();
+  final FocusNode _searchFocusNode = FocusNode();
+
+  // Show loading first
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(child: CircularProgressIndicator()),
+  );
+
+  // Load parties once
+  FirebaseService.getParties().first.then((parties) {
+    Navigator.pop(context); // Close loading
+
+    List<Party> filteredParties = List.from(parties);
+
     showDialog(
       context: context,
-      builder: (context) => StreamBuilder<List<Party>>(
-        stream: FirebaseService.getParties(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final parties = snapshot.data ?? [];
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Auto-focus after build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _searchFocusNode.requestFocus();
+          });
 
           return AlertDialog(
             title: const Text('Select Party'),
             content: SizedBox(
               width: double.maxFinite,
-              child: parties.isEmpty
-                  ? const Center(child: Text('No parties found'))
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: parties.length,
-                      itemBuilder: (context, index) {
-                        final party = parties[index];
-                        return ListTile(
-                          title: Text(party.name),
-                          subtitle: Text(party.phone),
-                          onTap: () {
-                            setState(() {
-                              _selectedParty = party;
-                            });
-                            Navigator.pop(context);
-                          },
-                        );
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // SEARCH BOX
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: TextField(
+                      controller: _partySearchController,
+                      focusNode: _searchFocusNode,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Search name, phone, GST...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      onChanged: (value) {
+                        final lower = value.toLowerCase();
+                        setDialogState(() {
+                          filteredParties = parties.where((p) {
+                            return p.name.toLowerCase().contains(lower) ||
+                                p.phone.contains(value) ||
+                                p.gstNumber.toLowerCase().contains(lower);
+                          }).toList();
+                        });
                       },
                     ),
+                  ),
+
+                  // PARTY LIST - No StreamBuilder = No rebuild flicker
+                  parties.isEmpty
+                      ? const Center(child: Text('No parties found'))
+                      : filteredParties.isEmpty
+                          ? const Center(child: Text('No matching parties'))
+                          : Flexible(
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: filteredParties.length,
+                                itemBuilder: (context, index) {
+                                  final party = filteredParties[index];
+                                  return ListTile(
+                                    title: Text(party.name),
+                                    subtitle: Text(party.phone),
+                                    trailing: party.gstNumber.isNotEmpty
+                                        ? Text(party.gstNumber, style: TextStyle(fontSize: 10, color: Colors.grey[600]))
+                                        : null,
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedParty = party;
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  _partySearchController.clear();
+                  Navigator.pop(context);
+                },
                 child: const Text('Cancel'),
               ),
             ],
           );
         },
       ),
+    ).then((_) {
+      _searchFocusNode.dispose();
+    });
+  }).catchError((e) {
+    Navigator.pop(context); // Close loading
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error loading parties: $e')),
     );
-  }
+  });
+}
 
+  // ======================================================
+  // ADD ITEM DIALOG
+  // ======================================================
   void _showAddItemDialog() {
     showDialog(
       context: context,
@@ -544,15 +639,16 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
   }
 
   void _showQuantityDialog(Item item) {
-    final quantityController = TextEditingController(text: '1');
-    final priceController =
-        TextEditingController(text: item.sellingPrice.toString());
+  final quantityController = TextEditingController(text: '1');
+  final priceController = TextEditingController(text: item.sellingPrice.toString());
+  final descriptionController = TextEditingController(); // NEW: Description controller
 
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text('Add ${item.name}'),
-        content: Column(
+  showDialog(
+    context: context,
+    builder: (context) => AlertDialog(
+      title: Text('Add ${item.name}'),
+      content: SingleChildScrollView( // NEW: Wrap in ScrollView for more fields
+        child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
@@ -581,55 +677,69 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
               ),
               keyboardType: TextInputType.number,
             ),
+            const SizedBox(height: 16),
+            // NEW: Description field
+            TextField(
+              controller: descriptionController,
+              decoration: const InputDecoration(
+                labelText: 'Description (Optional)',
+                border: OutlineInputBorder(),
+                hintText: 'Add item details...',
+              ),
+              maxLines: 2,
+              textCapitalization: TextCapitalization.sentences,
+            ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final quantity = double.tryParse(quantityController.text) ?? 0;
-              final price = double.tryParse(priceController.text) ?? 0;
-
-              if (quantity <= 0 || price <= 0) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                      content: Text('Please enter valid quantity and price')),
-                );
-                return;
-              }
-
-              if (quantity > item.currentStock) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                        'Insufficient stock! Available: ${item.currentStock.toStringAsFixed(0)}'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
-                return;
-              }
-
-              setState(() {
-                _lineItems.add(_InvoiceLineItem(
-                  itemId: item.id,
-                  itemName: item.name,
-                  hsnCode: item.hsnCode,
-                  quantity: quantity,
-                  price: price,
-                  gstPercent: item.gstPercent,
-                ));
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Add'),
-          ),
-        ],
       ),
-    );
-  }
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+        ElevatedButton(
+          onPressed: () {
+            final quantity = double.tryParse(quantityController.text) ?? 0;
+            final price = double.tryParse(priceController.text) ?? 0;
+
+            if (quantity <= 0 || price <= 0) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                    content: Text('Please enter valid quantity and price')),
+              );
+              return;
+            }
+
+            if (quantity > item.currentStock) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(
+                      'Insufficient stock! Available: ${item.currentStock.toStringAsFixed(0)}'),
+                  backgroundColor: Colors.red,
+                ),
+              );
+              return;
+            }
+
+            setState(() {
+              _lineItems.add(_InvoiceLineItem(
+                itemId: item.id,
+                itemName: item.name,
+                hsnCode: item.hsnCode,
+                quantity: quantity,
+                price: price,
+                gstPercent: item.gstPercent,
+                description: descriptionController.text.trim(), // NEW: Add description
+              ));
+            });
+            Navigator.pop(context);
+          },
+          child: const Text('Add'),
+        ),
+      ],
+    ),
+  );
+}
 
   Future<void> _selectDate(BuildContext context) async {
     final DateTime? picked = await showDatePicker(
@@ -672,6 +782,7 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
               quantity: item.quantity,
               price: item.price,
               gstPercent: item.gstPercent,
+              description: item.description,
             ))
         .toList();
 
@@ -687,6 +798,16 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
     );
 
     final result = await FirebaseService.createSalesInvoice(invoice);
+
+    if (!_isMarkedAsPaid) {
+  final finalAmount = (_grandTotal - _discount).clamp(0, double.infinity);
+  await FirebaseService.updatePartyBalance(
+    _selectedParty!.id,
+    finalAmount.toDouble(), // positive because customer owes us
+    _invoiceNumberController.text,
+    isCredit: true, // true means party owes money
+  );
+}
 
     setState(() {
       _isLoading = false;
@@ -719,9 +840,9 @@ Future<void> _downloadPdf(SalesInvoice invoice) async {
                 icon: const Icon(Icons.download),
                 label: const Text('Download PDF'),
                 style: ElevatedButton.styleFrom(
-                                  backgroundColor: Colors.purple,
-                                  foregroundColor: Colors.white,
-                                ),
+                  backgroundColor: Colors.purple,
+                  foregroundColor: Colors.white,
+                ),
               ),
             ],
           ),
@@ -742,6 +863,7 @@ class _InvoiceLineItem {
   final double quantity;
   final double price;
   final double gstPercent;
+  final String description; 
 
   _InvoiceLineItem({
     required this.itemId,
@@ -750,20 +872,12 @@ class _InvoiceLineItem {
     required this.quantity,
     required this.price,
     required this.gstPercent,
+    this.description = '',
   });
 
-  /// GST-inclusive subtotal (total value with GST)
   double get total => quantity * price;
-
-  /// Base amount excluding GST
   double get subtotal => total / (1 + gstPercent / 100);
-
-  /// Total GST extracted from price
   double get gstAmount => total - subtotal;
-
-  /// CGST = 50% of total GST
   double get cgst => gstAmount / 2;
-
-  /// SGST = 50% of total GST
   double get sgst => gstAmount / 2;
 }

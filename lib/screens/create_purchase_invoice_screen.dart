@@ -25,6 +25,9 @@ class _CreatePurchaseInvoiceScreenState
   final List<_InvoiceLineItem> _lineItems = [];
   bool _isLoading = false;
   double _discount = 0.0;
+    final _partySearchController = TextEditingController();
+    bool _isMarkedAsPaid = false;
+
 
   @override
   void initState() {
@@ -280,7 +283,17 @@ Future<void> _downloadPdf(PurchaseInvoice invoice) async {
                           },
                         ),
                       ),
+                      
                     ],
+                  ),
+                  CheckboxListTile(
+                    title: const Text('Mark as Paid'),
+                    value: _isMarkedAsPaid,
+                    onChanged: (value) {
+                      setState(() {
+                        _isMarkedAsPaid = value ?? false;
+                      });
+                    },
                   ),
                   const Divider(),
 
@@ -446,52 +459,116 @@ Future<void> _downloadPdf(PurchaseInvoice invoice) async {
   }
 
   void _showPartySelectionDialog() {
+  _partySearchController.clear();
+  final FocusNode _searchFocusNode = FocusNode();
+
+  // Show loading first
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) => const Center(child: CircularProgressIndicator()),
+  );
+
+  // Load parties once
+  FirebaseService.getParties().first.then((parties) {
+    Navigator.pop(context); // Close loading
+
+    List<Party> filteredParties = List.from(parties);
+
     showDialog(
       context: context,
-      builder: (context) => StreamBuilder<List<Party>>(
-        stream: FirebaseService.getParties(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final parties = snapshot.data ?? [];
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) {
+          // Auto-focus after build
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _searchFocusNode.requestFocus();
+          });
 
           return AlertDialog(
             title: const Text('Select Party'),
             content: SizedBox(
               width: double.maxFinite,
-              child: parties.isEmpty
-                  ? const Center(child: Text('No parties found'))
-                  : ListView.builder(
-                      shrinkWrap: true,
-                      itemCount: parties.length,
-                      itemBuilder: (context, index) {
-                        final party = parties[index];
-                        return ListTile(
-                          title: Text(party.name),
-                          subtitle: Text(party.phone),
-                          onTap: () {
-                            setState(() {
-                              _selectedParty = party;
-                            });
-                            Navigator.pop(context);
-                          },
-                        );
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // SEARCH BOX
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 8.0),
+                    child: TextField(
+                      controller: _partySearchController,
+                      focusNode: _searchFocusNode,
+                      autofocus: true,
+                      decoration: InputDecoration(
+                        hintText: 'Search name, phone, GST...',
+                        prefixIcon: const Icon(Icons.search),
+                        border: const OutlineInputBorder(),
+                        contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+                      ),
+                      onChanged: (value) {
+                        final lower = value.toLowerCase();
+                        setDialogState(() {
+                          filteredParties = parties.where((p) {
+                            return p.name.toLowerCase().contains(lower) ||
+                                p.phone.contains(value) ||
+                                p.gstNumber.toLowerCase().contains(lower);
+                          }).toList();
+                        });
                       },
                     ),
+                  ),
+
+                  // PARTY LIST - No StreamBuilder = No rebuild flicker
+                  parties.isEmpty
+                      ? const Center(child: Text('No parties found'))
+                      : filteredParties.isEmpty
+                          ? const Center(child: Text('No matching parties'))
+                          : Flexible(
+                              child: ListView.builder(
+                                shrinkWrap: true,
+                                itemCount: filteredParties.length,
+                                itemBuilder: (context, index) {
+                                  final party = filteredParties[index];
+                                  return ListTile(
+                                    title: Text(party.name),
+                                    subtitle: Text(party.phone),
+                                    trailing: party.gstNumber.isNotEmpty
+                                        ? Text(party.gstNumber, style: TextStyle(fontSize: 10, color: Colors.grey[600]))
+                                        : null,
+                                    onTap: () {
+                                      setState(() {
+                                        _selectedParty = party;
+                                      });
+                                      Navigator.pop(context);
+                                    },
+                                  );
+                                },
+                              ),
+                            ),
+                ],
+              ),
             ),
             actions: [
               TextButton(
-                onPressed: () => Navigator.pop(context),
+                onPressed: () {
+                  _partySearchController.clear();
+                  Navigator.pop(context);
+                },
                 child: const Text('Cancel'),
               ),
             ],
           );
         },
       ),
+    ).then((_) {
+      _searchFocusNode.dispose();
+    });
+  }).catchError((e) {
+    Navigator.pop(context); // Close loading
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Error loading parties: $e')),
     );
-  }
+  });
+}
 
   void _showAddItemDialog() {
     showDialog(
@@ -666,6 +743,16 @@ Future<void> _downloadPdf(PurchaseInvoice invoice) async {
     );
 
     final result = await FirebaseService.createPurchaseInvoice(invoice);
+
+    if (!_isMarkedAsPaid) {
+  final finalAmount = (_grandTotal - _discount).clamp(0, double.infinity);
+  await FirebaseService.updatePartyBalance(
+    _selectedParty!.id,
+    -finalAmount.toDouble(), // negative because we owe the supplier
+    _invoiceNumberController.text,
+    isCredit: false, // false means we owe money
+  );
+}
 
     setState(() {
       _isLoading = false;

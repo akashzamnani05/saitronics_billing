@@ -5,6 +5,7 @@ class InvoiceItem {
   final double quantity;
   final double price; // price is GST-inclusive
   final double gstPercent;
+  final String description; 
 
   InvoiceItem({
     required this.itemId,
@@ -13,6 +14,7 @@ class InvoiceItem {
     required this.quantity,
     required this.price,
     required this.gstPercent,
+    this.description = '',
   });
 
   /// Base price per unit excluding GST
@@ -42,6 +44,7 @@ class InvoiceItem {
       'quantity': quantity,
       'price': price,
       'gstPercent': gstPercent,
+      'description': description,
     };
   }
 
@@ -53,6 +56,7 @@ class InvoiceItem {
       quantity: (map['quantity'] ?? 0).toDouble(),
       price: (map['price'] ?? 0).toDouble(),
       gstPercent: (map['gstPercent'] ?? 0).toDouble(),
+      description: map['description'] ?? '',
     );
   }
 }
