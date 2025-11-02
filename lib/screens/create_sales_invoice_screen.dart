@@ -4,6 +4,7 @@ import 'package:saitronics_billing/models/invoice_item.dart';
 import 'package:saitronics_billing/models/item.dart';
 import 'package:saitronics_billing/models/party.dart';
 import 'package:saitronics_billing/models/sales_invoice.dart';
+import 'package:saitronics_billing/models/transaction.dart';
 import 'package:saitronics_billing/utils/sales_invoice_pdf_generator.dart';
 import 'package:uuid/uuid.dart';
 import '../services/firebase_service.dart';
@@ -49,7 +50,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
     if (_selectedParty == null) return;
 
     try {
-      await SalesInvoicePdfGenerator.sharePdf(
+      await SalesInvoicePdfGenerator.previewPdf(
         invoice,
         _selectedParty!,
         paidAmount: invoice.grandTotal,
@@ -755,106 +756,128 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
     }
   }
 
-  Future<void> _saveSalesInvoice() async {
-    if (_selectedParty == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a party')),
-      );
-      return;
-    }
-
-    if (_lineItems.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please add at least one item')),
-      );
-      return;
-    }
-
-    setState(() {
-      _isLoading = true;
-    });
-
-    final invoiceItems = _lineItems
-        .map((item) => InvoiceItem(
-              itemId: item.itemId,
-              itemName: item.itemName,
-              hsnCode: item.hsnCode,
-              quantity: item.quantity,
-              price: item.price,
-              gstPercent: item.gstPercent,
-              description: item.description,
-            ))
-        .toList();
-
-    final invoice = SalesInvoice(
-      id: const Uuid().v4(),
-      partyId: _selectedParty!.id,
-      partyName: _selectedParty!.name,
-      items: invoiceItems,
-      invoiceDate: _invoiceDate,
-      invoiceNumber: _invoiceNumberController.text,
-      createdAt: DateTime.now(),
-      discount: _discount,
+Future<void> _saveSalesInvoice() async {
+  if (_selectedParty == null) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please select a party')),
     );
+    return;
+  }
 
-    final result = await FirebaseService.createSalesInvoice(invoice);
+  if (_lineItems.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Please add at least one item')),
+    );
+    return;
+  }
 
-    if (!_isMarkedAsPaid) {
-  final finalAmount = (_grandTotal - _discount).clamp(0, double.infinity);
-  await FirebaseService.updatePartyBalance(
-    _selectedParty!.id,
-    finalAmount.toDouble(), // positive because customer owes us
-    _invoiceNumberController.text,
-    isCredit: true, // true means party owes money
+  setState(() {
+    _isLoading = true;
+  });
+
+  final invoiceItems = _lineItems
+      .map((item) => InvoiceItem(
+            itemId: item.itemId,
+            itemName: item.itemName,
+            hsnCode: item.hsnCode,
+            quantity: item.quantity,
+            price: item.price,
+            gstPercent: item.gstPercent,
+            description: item.description,
+          ))
+      .toList();
+
+  final invoiceId = const Uuid().v4();
+  final invoice = SalesInvoice(
+    id: invoiceId,
+    partyId: _selectedParty!.id,
+    partyName: _selectedParty!.name,
+    items: invoiceItems,
+    invoiceDate: _invoiceDate,
+    invoiceNumber: _invoiceNumberController.text,
+    createdAt: DateTime.now(),
+    discount: _discount,
   );
-}
 
-    setState(() {
-      _isLoading = false;
-    });
+  final result = await FirebaseService.createSalesInvoice(invoice);
 
-    if (mounted) {
-      if (result.contains('successfully')) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            title: const Text('Success!'),
-            content: const Text(
-                'Sales invoice created and inventory updated successfully.'),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context); // Close dialog
+  // Update party balance if not marked as paid
+  if (!_isMarkedAsPaid) {
+    final finalAmount = (_grandTotal - _discount).clamp(0, double.infinity);
+    await FirebaseService.updatePartyBalance(
+      _selectedParty!.id,
+      finalAmount.toDouble(),
+      _invoiceNumberController.text,
+      isCredit: true,
+    );
+  }
+
+  // Create transaction record
+  final transaction = Transaction(
+    id: const Uuid().v4(),
+    invoiceId: invoiceId,
+    invoiceNumber: _invoiceNumberController.text,
+    type: TransactionType.sale,
+    partyId: _selectedParty!.id,
+    partyName: _selectedParty!.name,
+    amount: _grandTotal,
+    subtotal: _subtotal,
+    gstAmount: _totalGST,
+    discount: _discount,
+    itemCount: _lineItems.length,
+    transactionDate: _invoiceDate,
+    createdAt: DateTime.now(),
+    isPaid: _isMarkedAsPaid,
+    paymentMethod: _isMarkedAsPaid ? 'Cash' : null, // You can add payment method selector
+  );
+
+  await FirebaseService.createTransaction(transaction);
+
+  setState(() {
+    _isLoading = false;
+  });
+
+  if (mounted) {
+    if (result.contains('successfully')) {
+      showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Success!'),
+          content: const Text(
+              'Sales invoice created and inventory updated successfully.'),
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context); // Close dialog
+                Navigator.pop(context); // Go back to previous screen
+              },
+              child: const Text('OK'),
+            ),
+            ElevatedButton.icon(
+              onPressed: () async {
+                Navigator.pop(context); // Close dialog
+                await _downloadPdf(invoice);
+                if (mounted) {
                   Navigator.pop(context); // Go back to previous screen
-                },
-                child: const Text('OK'),
+                }
+              },
+              icon: const Icon(Icons.download),
+              label: const Text('Download PDF'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.purple,
+                foregroundColor: Colors.white,
               ),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  Navigator.pop(context); // Close dialog
-                  await _downloadPdf(invoice);
-                  if (mounted) {
-                    Navigator.pop(context); // Go back to previous screen
-                  }
-                },
-                icon: const Icon(Icons.download),
-                label: const Text('Download PDF'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                ),
-              ),
-            ],
-          ),
-        );
-      } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result)),
-        );
-      }
+            ),
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result)),
+      );
     }
   }
-}
+}}
 
 class _InvoiceLineItem {
   final String itemId;

@@ -1,8 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:cloud_firestore/cloud_firestore.dart' hide Transaction;
 import 'package:saitronics_billing/models/item.dart';
 import 'package:saitronics_billing/models/party.dart';
 import 'package:saitronics_billing/models/purchase_invoice.dart';
 import 'package:saitronics_billing/models/sales_invoice.dart';
+import 'package:saitronics_billing/models/transaction.dart';
 
 import '../models/category.dart';
 
@@ -20,6 +21,8 @@ class FirebaseService {
       _firestore.collection('salesInvoices');
   static CollectionReference get _categoriesCollection =>
       _firestore.collection('categories');
+      static CollectionReference get _transactionsCollection =>
+    _firestore.collection('transactions');
 
   static CollectionReference get _counterCollection => _firestore.collection('counters');
 
@@ -61,7 +64,7 @@ class FirebaseService {
       transaction.set(counterRef, {'lastNumber': newNumber});
 
       // Format it as PUR-0001, PUR-0002, etc.
-      final formatted = 'P-${newNumber.toString().padLeft(4, '0')}';
+      final formatted = 'S-${newNumber.toString().padLeft(4, '0')}';
       return formatted;
     });
   }
@@ -425,4 +428,111 @@ static Future<String> deleteSalesInvoice(String id) async {
       print('Error initializing categories: $e');
     }
   }
+
+
+
+  // ========== TRANSACTION OPERATIONS ==========
+
+// Create Transaction
+static Future<String> createTransaction(Transaction transaction) async {
+  try {
+    await _transactionsCollection.doc(transaction.id).set(transaction.toMap());
+    return 'Transaction recorded successfully';
+  } catch (e) {
+    return 'Error creating transaction: $e';
+  }
 }
+
+// Get all transactions
+static Stream<List<Transaction>> getTransactions() {
+  return _transactionsCollection
+      .orderBy('transactionDate', descending: true)
+      .snapshots()
+      .map((snapshot) {
+    return snapshot.docs.map((doc) {
+      return Transaction.fromMap(doc.data() as Map<String, dynamic>);
+    }).toList();
+  });
+}
+
+// Get transactions by type
+static Stream<List<Transaction>> getTransactionsByType(TransactionType type) {
+  return _transactionsCollection
+      .where('type', isEqualTo: type.name)
+      .orderBy('transactionDate', descending: true)
+      .snapshots()
+      .map((snapshot) {
+    return snapshot.docs.map((doc) {
+      return Transaction.fromMap(doc.data() as Map<String, dynamic>);
+    }).toList();
+  });
+}
+
+// 1. All Transactions (sorted by date descending)
+static Stream<List<Transaction>> getTransactionsByParty(String partyId) {
+  return FirebaseFirestore.instance
+      .collection('transactions')
+      .where('partyId', isEqualTo: partyId)
+      .orderBy('transactionDate', descending: true)
+      .snapshots()
+      .map((snapshot) => snapshot.docs
+          .map((doc) => Transaction.fromMap(doc.data()))
+          .toList());
+}
+
+// 2. Unpaid Transactions
+static Stream<List<Transaction>> getUnpaidTransactionsByParty(String partyId) {
+  return FirebaseFirestore.instance
+      .collection('transactions')
+      .where('partyId', isEqualTo: partyId)
+      .where('isPaid', isEqualTo: false)
+      .orderBy('transactionDate', descending: true)
+      .snapshots()
+      .map((snapshot) => snapshot.docs
+          .map((doc) => Transaction.fromMap(doc.data()))
+          .toList());
+}
+
+// Get transactions by date range
+static Stream<List<Transaction>> getTransactionsByDateRange(
+    DateTime startDate, DateTime endDate) {
+  return _transactionsCollection
+      .where('transactionDate',
+          isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+      .where('transactionDate',
+          isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+      .orderBy('transactionDate', descending: true)
+      .snapshots()
+      .map((snapshot) {
+    return snapshot.docs.map((doc) {
+      return Transaction.fromMap(doc.data() as Map<String, dynamic>);
+    }).toList();
+  });
+}
+
+// Delete Transaction
+static Future<String> deleteTransaction(String id) async {
+  try {
+    await _transactionsCollection.doc(id).delete();
+    return 'Transaction deleted successfully';
+  } catch (e) {
+    return 'Error deleting transaction: $e';
+  }
+}
+
+// Update Transaction payment status
+static Future<String> updateTransactionPaymentStatus(
+    String id, bool isPaid, String? paymentMethod) async {
+  try {
+    await _transactionsCollection.doc(id).update({
+      'isPaid': isPaid,
+      'paymentMethod': paymentMethod,
+    });
+    return 'Payment status updated successfully';
+  } catch (e) {
+    return 'Error updating payment status: $e';
+  }
+}
+}
+
+

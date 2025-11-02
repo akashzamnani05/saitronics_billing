@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:saitronics_billing/screens/GST_purchase_report.dart';
+import 'package:saitronics_billing/screens/GST_sales_report.dart';
 import 'package:saitronics_billing/screens/purchase_invoices_list_screen.dart';
 import 'package:saitronics_billing/screens/sales_invoice_list_screen.dart';
 import 'items_screen.dart';
@@ -75,6 +77,34 @@ class HomeScreen extends StatelessWidget {
                   context,
                   MaterialPageRoute(
                     builder: (context) => const SalesInvoicesListScreen(),
+                  ),
+                );
+              },
+            ),
+            _buildDashboardCard(
+              context,
+              title: 'GST Purchase Report',
+              icon: Icons.point_of_sale,
+              color: Colors.purple,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const GSTPurchaseReport(),
+                  ),
+                );
+              },
+            ),
+            _buildDashboardCard(
+              context,
+              title: 'Sales Purchase Report',
+              icon: Icons.point_of_sale,
+              color: Colors.purple,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const GSTSalesReport(),
                   ),
                 );
               },

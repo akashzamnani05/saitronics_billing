@@ -16,7 +16,7 @@ class PurchaseInvoicePdfGenerator {
   static const String companyMobile = "9359023027";
   static const String companyGSTIN = "27AAEPZ9949F1ZW";
   static const String companyPAN = "AAEPZ9949F";
-  static const String companyEmail = "zamnanianil@gmail.com";
+  static const String companyEmail = "saitronics.nashik@gmail.com";
   static const String placeOfSupply = "Maharashtra";
 
   static Future<Uint8List> generatePurchaseInvoice(
@@ -243,322 +243,393 @@ class PurchaseInvoicePdfGenerator {
   }
 
   static pw.Widget _buildItemsTable(PurchaseInvoice invoice) {
-    return pw.Container(
-      decoration: pw.BoxDecoration(
-        border: pw.Border.all(color: PdfColors.grey400),
-      ),
-      child: pw.Column(
-        children: [
-          // Table Header
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: const pw.BoxDecoration(
-              color: PdfColors.grey300,
-            ),
-            child: pw.Row(
-              children: [
-                pw.Expanded(
-                  flex: 4,
-                  child: pw.Text(
-                    'ITEMS',
-                    style: pw.TextStyle(
-                      fontSize: 9,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    'QTY.',
-                    style: pw.TextStyle(
-                      fontSize: 9,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    'HSN',
-                    style: pw.TextStyle(
-                      fontSize: 9,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    'RATE',
-                    style: pw.TextStyle(
-                      fontSize: 9,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.right,
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    'TAX',
-                    style: pw.TextStyle(
-                      fontSize: 9,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    'AMOUNT',
-                    style: pw.TextStyle(
-                      fontSize: 9,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.right,
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          // Table Rows
-          ...invoice.items.map((item) => _buildItemRow(item)),
-
-          // Subtotal Row
-          pw.Container(
-            padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-            decoration: const pw.BoxDecoration(
-              border: pw.Border(
-                top: pw.BorderSide(color: PdfColors.grey400),
-              ),
-            ),
-            child: pw.Row(
-              children: [
-                pw.Expanded(
-                  flex: 4,
-                  child: pw.Text(
-                    'SUBTOTAL',
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    '${_getTotalQuantity(invoice)}',
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.center,
-                  ),
-                ),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    'Rs. ${_formatAmount(invoice.totalGst)}',
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.right,
-                  ),
-                ),
-                pw.Expanded(flex: 2, child: pw.Container()),
-                pw.Expanded(
-                  flex: 2,
-                  child: pw.Text(
-                    'Rs. ${_formatAmount(invoice.totalBeforeDiscount)}',
-                    style: pw.TextStyle(
-                      fontSize: 10,
-                      fontWeight: pw.FontWeight.bold,
-                    ),
-                    textAlign: pw.TextAlign.right,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _buildItemRow(InvoiceItem item) {
-    return pw.Container(
-      padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-      decoration: const pw.BoxDecoration(
-        border: pw.Border(
-          top: pw.BorderSide(color: PdfColors.grey400),
-        ),
-      ),
-      child: pw.Row(
-        crossAxisAlignment: pw.CrossAxisAlignment.start,
-        children: [
-          pw.Expanded(
-            flex: 4,
-            child: pw.Text(
-              item.itemName.toUpperCase(),
-              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.normal),
-            ),
-          ),
-          pw.Expanded(
-            flex: 2,
-            child: pw.Text(
-              '${item.quantity.toInt()} PCS',
-              style: const pw.TextStyle(fontSize: 9),
-              textAlign: pw.TextAlign.center,
-            ),
-          ),
-          pw.Expanded(
-            flex: 2,
-            child: pw.Text(
-              item.hsnCode,
-              style: const pw.TextStyle(fontSize: 9),
-              textAlign: pw.TextAlign.center,
-            ),
-          ),
-          pw.Expanded(
-            flex: 2,
-            child: pw.Text(
-              _formatAmount(item.price),
-              style: const pw.TextStyle(fontSize: 9),
-              textAlign: pw.TextAlign.right,
-            ),
-          ),
-          pw.Expanded(
-            flex: 2,
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.center,
-              children: [
-                pw.Text(
-                  _formatAmount(item.gstAmount),
-                  style: const pw.TextStyle(fontSize: 9),
-                  textAlign: pw.TextAlign.center,
-                ),
-                pw.Text(
-                  '(${item.gstPercent.toInt()}%)',
-                  style: const pw.TextStyle(fontSize: 8),
-                  textAlign: pw.TextAlign.center,
-                ),
-              ],
-            ),
-          ),
-          pw.Expanded(
-            flex: 2,
-            child: pw.Text(
-              _formatAmount(item.total),
-              style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
-              textAlign: pw.TextAlign.right,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  static pw.Widget _buildBottomSection(
-      PurchaseInvoice invoice, double paidAmount) {
-    final balanceAmount = invoice.total - paidAmount;
-    final cgstAmount = invoice.totalGst / 2;
-    final sgstAmount = invoice.totalGst / 2;
-
-    return pw.Row(
-      crossAxisAlignment: pw.CrossAxisAlignment.start,
+  return pw.Container(
+    decoration: pw.BoxDecoration(
+      border: pw.Border.all(color: PdfColors.grey400),
+    ),
+    child: pw.Column(
       children: [
-        // Terms and Conditions
-        pw.Expanded(
-          flex: 3,
-          child: pw.Container(
-            padding: const pw.EdgeInsets.all(10),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey400),
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                pw.Text(
-                  'TERMS AND CONDITIONS',
-                  style: pw.TextStyle(
-                    fontSize: 10,
-                    fontWeight: pw.FontWeight.bold,
-                  ),
-                ),
-                pw.SizedBox(height: 8),
-                pw.Text(
-                  '1. Goods once sold will not be taken back',
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-                pw.Text(
-                  '2. 6 month Warranty',
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-              ],
-            ),
+        // Table Header
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: const pw.BoxDecoration(
+            color: PdfColors.grey300,
           ),
-        ),
-        pw.SizedBox(width: 10),
-        // Amounts Section
-        pw.Expanded(
-          flex: 2,
-          child: pw.Container(
-            padding: const pw.EdgeInsets.all(10),
-            decoration: pw.BoxDecoration(
-              border: pw.Border.all(color: PdfColors.grey400),
-            ),
-            child: pw.Column(
-              crossAxisAlignment: pw.CrossAxisAlignment.start,
-              children: [
-                _buildAmountRow(
-                    'Taxable Amount', invoice.subtotal, isBold: false),
-                pw.SizedBox(height: 4),
-                _buildAmountRow('CGST @9%', cgstAmount, isBold: false),
-                pw.SizedBox(height: 4),
-                _buildAmountRow('SGST @9%', sgstAmount, isBold: false),
-                pw.SizedBox(height: 4),
-                if(invoice.discount > 0) _buildAmountRow('Discount', invoice.discount,
-                    isBold: false),
-                pw.SizedBox(height: 8),
-                pw.Divider(color: PdfColors.grey400),
-                pw.SizedBox(height: 4),
-                pw.SizedBox(height: 4),
-                
-
-                _buildAmountRow('Total Amount', invoice.total,
-                    isBold: true),
-                pw.SizedBox(height: 4),
-                _buildAmountRow('Paid Amount', paidAmount, isBold: false),
-                pw.SizedBox(height: 4),
-                _buildAmountRow('Balance', balanceAmount, isBold: true),
-                pw.SizedBox(height: 8),
-                pw.Divider(color: PdfColors.grey400),
-                pw.SizedBox(height: 4),
-                pw.Text(
-                  'Total Amount (in words)',
-                  style: const pw.TextStyle(fontSize: 8),
-                ),
-                pw.SizedBox(height: 2),
-                pw.Text(
-                  _convertAmountToWords(invoice.total),
+          child: pw.Row(
+            children: [
+              pw.Expanded(
+                flex: 4,
+                child: pw.Text(
+                  'ITEMS',
                   style: pw.TextStyle(
                     fontSize: 9,
                     fontWeight: pw.FontWeight.bold,
                   ),
                 ),
-              ],
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  'HSN',
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  'QTY.',
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  'RATE',
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  'TAX',
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  'AMOUNT',
+                  style: pw.TextStyle(
+                    fontSize: 9,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Table Rows
+        ...invoice.items.map((item) => _buildItemRow(item)),
+
+        // Subtotal Row - UPDATED for proper alignment
+        pw.Container(
+          padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+          decoration: const pw.BoxDecoration(
+            border: pw.Border(
+              top: pw.BorderSide(color: PdfColors.grey400),
             ),
+          ),
+          child: pw.Row(
+            children: [
+              // ITEMS column - empty for subtotal
+              pw.Expanded(
+                flex: 4,
+                child: pw.Text(
+                  'SUBTOTAL',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.left,
+                ),
+              ),
+              // HSN column - empty for subtotal
+              pw.Expanded(flex: 2, child: pw.Container()),
+              // QTY column - show total quantity
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  '${_getTotalQuantity(invoice)} PCS',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              // RATE column - empty for subtotal
+              pw.Expanded(flex: 2, child: pw.Container()),
+              // TAX column - show total GST
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  'Rs. ${_formatAmount(invoice.totalGst)}',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.center,
+                ),
+              ),
+              // AMOUNT column - show total
+              pw.Expanded(
+                flex: 2,
+                child: pw.Text(
+                  'Rs. ${_formatAmount(invoice.totalBeforeDiscount)}',
+                  style: pw.TextStyle(
+                    fontSize: 10,
+                    fontWeight: pw.FontWeight.bold,
+                  ),
+                  textAlign: pw.TextAlign.right,
+                ),
+              ),
+            ],
           ),
         ),
       ],
-    );
-  }
+    ),
+  );
+}
+
+static pw.Widget _buildItemRow(InvoiceItem item) {
+  return pw.Container(
+    padding: const pw.EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+    decoration: const pw.BoxDecoration(
+      border: pw.Border(
+        top: pw.BorderSide(color: PdfColors.grey400),
+      ),
+    ),
+    child: pw.Row(
+      crossAxisAlignment: pw.CrossAxisAlignment.start,
+      children: [
+        // ITEMS column
+        pw.Expanded(
+          flex: 4,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.start,
+            children: [
+              pw.Text(
+                item.itemName.toUpperCase(),
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              // Add description if available
+              if (item.description.isNotEmpty) ...[
+                pw.SizedBox(height: 2),
+                pw.Text(
+                  item.description,
+                  style: pw.TextStyle(
+                    fontSize: 8,
+                    color: PdfColors.grey700,
+                    fontStyle: pw.FontStyle.italic,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        // HSN column
+        pw.Expanded(
+          flex: 2,
+          child: pw.Text(
+            item.hsnCode,
+            style: const pw.TextStyle(fontSize: 9),
+            textAlign: pw.TextAlign.center,
+          ),
+        ),
+        // QTY column
+        pw.Expanded(
+          flex: 2,
+          child: pw.Text(
+            '${item.quantity.toInt()} PCS',
+            style: const pw.TextStyle(fontSize: 9),
+            textAlign: pw.TextAlign.center,
+          ),
+        ),
+        // RATE column
+        pw.Expanded(
+          flex: 2,
+          child: pw.Text(
+            _formatAmount(item.price),
+            style: const pw.TextStyle(fontSize: 9),
+            textAlign: pw.TextAlign.right,
+          ),
+        ),
+        // TAX column
+        pw.Expanded(
+          flex: 2,
+          child: pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.center,
+            children: [
+              pw.Text(
+                _formatAmount(item.gstAmount),
+                style: const pw.TextStyle(fontSize: 9),
+                textAlign: pw.TextAlign.center,
+              ),
+              pw.Text(
+                '(${item.gstPercent.toInt()}%)',
+                style: const pw.TextStyle(fontSize: 8),
+                textAlign: pw.TextAlign.center,
+              ),
+            ],
+          ),
+        ),
+        // AMOUNT column
+        pw.Expanded(
+          flex: 2,
+          child: pw.Text(
+            _formatAmount(item.total),
+            style: pw.TextStyle(fontSize: 9, fontWeight: pw.FontWeight.bold),
+            textAlign: pw.TextAlign.right,
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+  static pw.Widget _buildBottomSection(
+    PurchaseInvoice invoice, double paidAmount) {
+  final balanceAmount = invoice.total - paidAmount;
+  final cgstAmount = invoice.totalGst / 2;
+  final sgstAmount = invoice.totalGst / 2;
+
+  return pw.Column(
+    children: [
+      // Terms and Amounts Row
+      pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.start,
+        children: [
+          // Terms and Conditions
+          pw.Expanded(
+            flex: 3,
+            child: pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey400),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  pw.Text(
+                    'TERMS AND CONDITIONS',
+                    style: pw.TextStyle(
+                      fontSize: 10,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                  pw.SizedBox(height: 8),
+                  pw.Text(
+                    '1. Goods once sold will not be taken back',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                  pw.Text(
+                    '2. 6 month Warranty',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          pw.SizedBox(width: 10),
+          // Amounts Section
+          pw.Expanded(
+            flex: 2,
+            child: pw.Container(
+              padding: const pw.EdgeInsets.all(10),
+              decoration: pw.BoxDecoration(
+                border: pw.Border.all(color: PdfColors.grey400),
+              ),
+              child: pw.Column(
+                crossAxisAlignment: pw.CrossAxisAlignment.start,
+                children: [
+                  _buildAmountRow(
+                      'Taxable Amount', invoice.subtotal, isBold: false),
+                  pw.SizedBox(height: 4),
+                  _buildAmountRow('CGST @9%', cgstAmount, isBold: false),
+                  pw.SizedBox(height: 4),
+                  _buildAmountRow('SGST @9%', sgstAmount, isBold: false),
+                  pw.SizedBox(height: 4),
+                  if(invoice.discount > 0) _buildAmountRow('Discount', invoice.discount,
+                      isBold: false),
+                  pw.SizedBox(height: 8),
+                  pw.Divider(color: PdfColors.grey400),
+                  pw.SizedBox(height: 4),
+                  _buildAmountRow('Total Amount', invoice.total,
+                      isBold: true),
+                  pw.SizedBox(height: 4),
+                  _buildAmountRow('Paid Amount', paidAmount, isBold: false),
+                  pw.SizedBox(height: 4),
+                  _buildAmountRow('Balance', balanceAmount, isBold: true),
+                  pw.SizedBox(height: 8),
+                  pw.Divider(color: PdfColors.grey400),
+                  pw.SizedBox(height: 4),
+                  pw.Text(
+                    'Total Amount (in words)',
+                    style: const pw.TextStyle(fontSize: 8),
+                  ),
+                  pw.SizedBox(height: 2),
+                  pw.Text(
+                    _convertAmountToWords(invoice.total),
+                    style: pw.TextStyle(
+                      fontSize: 9,
+                      fontWeight: pw.FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      ),
+      
+      // NEW: Signature box
+      pw.SizedBox(height: 10),
+      pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.end,
+        children: [
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Container(
+                width: 200,
+                height: 60,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey600),
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                'AUTHORISED SIGNATORY FOR',
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                companyName,
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ],
+  );
+}
 
   static pw.Widget _buildAmountRow(String label, double amount,
       {required bool isBold}) {
