@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
+
 import 'package:saitronics_billing/models/item.dart';
 import 'package:uuid/uuid.dart';
-
 import '../models/category.dart';
 import '../services/firebase_service.dart';
+import '../widgets/custom_text_field.dart';
 
 class AddEditItemScreen extends StatefulWidget {
   final Item? item;
@@ -59,22 +60,91 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     final isEditing = widget.item != null;
 
     return Scaffold(
+      backgroundColor: Colors.grey[50],
       appBar: AppBar(
-        title: Text(isEditing ? 'Edit Item' : 'Add Item'),
-        backgroundColor: Colors.blue,
+        title: Text(isEditing ? 'Edit Item' : 'Add New Item'),
+        backgroundColor: const Color(0xFF1976D2),
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            TextFormField(
-              controller: _nameController,
-              decoration: const InputDecoration(
-                labelText: 'Item Name *',
-                prefixIcon: Icon(Icons.label),
+            // Header Card
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [const Color(0xFF1976D2), const Color(0xFF1565C0)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1976D2).withOpacity(0.3),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
               ),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Icon(
+                      isEditing ? Icons.edit : Icons.add_box,
+                      color: Colors.white,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          isEditing ? 'Update Item Details' : 'Create New Item',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          isEditing
+                              ? 'Modify item information'
+                              : 'Fill in the details below',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 13,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 24),
+
+            // Basic Information Section
+            _buildSectionHeader('Basic Information', Icons.info_outline),
+            const SizedBox(height: 12),
+            
+            CustomTextField(
+              controller: _nameController,
+              label: 'Item Name',
+              hint: 'Enter item name',
+              prefixIcon: Icons.label_outline,
+              textCapitalization: TextCapitalization.words,
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Please enter item name';
@@ -83,13 +153,12 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
               },
             ),
             const SizedBox(height: 16),
-            TextFormField(
+            
+            CustomTextField(
               controller: _hsnCodeController,
-              decoration: const InputDecoration(
-                labelText: 'HSN Code *',
-                prefixIcon: Icon(Icons.qr_code),
-                hintText: 'Enter HSN/SAC code',
-              ),
+              label: 'HSN Code',
+              hint: 'Enter HSN/SAC code',
+              prefixIcon: Icons.qr_code_2,
               keyboardType: TextInputType.number,
               validator: (value) {
                 if (value == null || value.isEmpty) {
@@ -99,13 +168,14 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
               },
             ),
             const SizedBox(height: 16),
-            TextFormField(
+            
+            CustomTextField(
               controller: _descriptionController,
-              decoration: const InputDecoration(
-                labelText: 'Description *',
-                prefixIcon: Icon(Icons.description),
-              ),
+              label: 'Description',
+              hint: 'Enter item description',
+              prefixIcon: Icons.description_outlined,
               maxLines: 3,
+              textCapitalization: TextCapitalization.sentences,
               validator: (value) {
                 if (value == null || value.isEmpty) {
                   return 'Please enter description';
@@ -113,89 +183,26 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                 return null;
               },
             ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _sellingPriceController,
-              decoration: const InputDecoration(
-                labelText: 'Selling Price *',
-                prefixIcon: Icon(Icons.currency_rupee),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter selling price';
-                }
-                if (double.tryParse(value) == null) {
-                  return 'Please enter a valid number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _purchasePriceController,
-              decoration: const InputDecoration(
-                labelText: 'Purchase Price *',
-                prefixIcon: Icon(Icons.currency_rupee),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter purchase price';
-                }
-                if (double.tryParse(value) == null) {
-                  return 'Please enter a valid number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _gstPercentController,
-              decoration: const InputDecoration(
-                labelText: 'GST Percent *',
-                prefixIcon: Icon(Icons.percent),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter GST percent';
-                }
-                if (double.tryParse(value) == null) {
-                  return 'Please enter a valid number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
-            TextFormField(
-              controller: _openingStockController,
-              decoration: const InputDecoration(
-                labelText: 'Opening Stock *',
-                prefixIcon: Icon(Icons.inventory),
-              ),
-              keyboardType: TextInputType.number,
-              validator: (value) {
-                if (value == null || value.isEmpty) {
-                  return 'Please enter opening stock';
-                }
-                if (double.tryParse(value) == null) {
-                  return 'Please enter a valid number';
-                }
-                return null;
-              },
-            ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 24),
+
+            // Category Section
+            _buildSectionHeader('Category', Icons.category_outlined),
+            const SizedBox(height: 12),
+            
             StreamBuilder<List<Category>>(
               stream: FirebaseService.getCategories(),
               builder: (context, snapshot) {
                 if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
+                  return const Center(
+                    child: Padding(
+                      padding: EdgeInsets.all(20),
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
                 }
 
                 final categories = snapshot.data ?? [];
 
-                // Set default category if none selected
                 if (_selectedCategoryId == null && categories.isNotEmpty) {
                   _selectedCategoryId = categories.first.id;
                 }
@@ -203,20 +210,16 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    DropdownButtonFormField<String>(
+                    CustomDropdownField<String>(
                       value: _selectedCategoryId,
-                      decoration: const InputDecoration(
-                        labelText: 'Category *',
-                        prefixIcon: Icon(Icons.category),
-                      ),
-                      items: [
-                        ...categories.map((category) {
-                          return DropdownMenuItem(
-                            value: category.id,
-                            child: Text(category.name),
-                          );
-                        }),
-                      ],
+                      label: 'Select Category',
+                      prefixIcon: Icons.category,
+                      items: categories.map((category) {
+                        return DropdownMenuItem(
+                          value: category.id,
+                          child: Text(category.name),
+                        );
+                      }).toList(),
                       onChanged: (value) {
                         setState(() {
                           _selectedCategoryId = value;
@@ -229,59 +232,222 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                         return null;
                       },
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 12),
                     Row(
                       children: [
-                        TextButton.icon(
-                          onPressed: () => _showAddCategoryDialog(context),
-                          icon: const Icon(Icons.add),
-                          label: const Text('Add New Category'),
-                          style: TextButton.styleFrom(
-                            foregroundColor: Colors.blue,
-                          ),
-                        ),
-                        const Spacer(),
-                        if (categories.length > 3)
-                          TextButton.icon(
-                            onPressed: () =>
-                                _showManageCategoriesDialog(context, categories),
-                            icon: const Icon(Icons.settings),
-                            label: const Text('Manage'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.grey[700],
+                        Expanded(
+                          child: OutlinedButton.icon(
+                            onPressed: () => _showAddCategoryDialog(context),
+                            icon: const Icon(Icons.add, size: 18),
+                            label: const Text('Add Category'),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: const Color(0xFF1976D2),
+                              padding: const EdgeInsets.symmetric(vertical: 12),
+                              side: const BorderSide(color: Color(0xFF1976D2)),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(8),
+                              ),
                             ),
                           ),
+                        ),
+                        if (categories.length > 3) ...[
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: () =>
+                                  _showManageCategoriesDialog(context, categories),
+                              icon: const Icon(Icons.settings, size: 18),
+                              label: const Text('Manage'),
+                              style: OutlinedButton.styleFrom(
+                                foregroundColor: Colors.grey[700],
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: BorderSide(color: Colors.grey.shade300),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                   ],
                 );
               },
             ),
-            const SizedBox(height: 32),
-            ElevatedButton(
-              onPressed: _isLoading ? null : _saveItem,
-              style: ElevatedButton.styleFrom(
-                padding: const EdgeInsets.all(16),
-                backgroundColor: Colors.blue,
-                foregroundColor: Colors.white,
-              ),
-              child: _isLoading
-                  ? const SizedBox(
-                      height: 20,
-                      width: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
-                      ),
-                    )
-                  : Text(
-                      isEditing ? 'Update Item' : 'Add Item',
-                      style: const TextStyle(fontSize: 16),
-                    ),
+            const SizedBox(height: 24),
+
+            // Pricing Section
+            _buildSectionHeader('Pricing & Tax', Icons.payments_outlined),
+            const SizedBox(height: 12),
+            
+            Row(
+              children: [
+                Expanded(
+                  child: CustomTextField(
+                    controller: _purchasePriceController,
+                    label: 'Purchase Price',
+                    hint: '0.00',
+                    prefixIcon: Icons.shopping_cart_outlined,
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Required';
+                      }
+                      if (double.tryParse(value) == null) {
+                        return 'Invalid';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: CustomTextField(
+                    controller: _sellingPriceController,
+                    label: 'Selling Price',
+                    hint: '0.00',
+                    prefixIcon: Icons.sell_outlined,
+                    keyboardType: TextInputType.number,
+                    validator: (value) {
+                      if (value == null || value.isEmpty) {
+                        return 'Required';
+                      }
+                      if (double.tryParse(value) == null) {
+                        return 'Invalid';
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 16),
+            
+            CustomTextField(
+              controller: _gstPercentController,
+              label: 'GST Percent',
+              hint: 'Enter GST %',
+              prefixIcon: Icons.percent,
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter GST percent';
+                }
+                if (double.tryParse(value) == null) {
+                  return 'Please enter a valid number';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+
+            // Stock Section
+            _buildSectionHeader('Stock Information', Icons.inventory_2_outlined),
+            const SizedBox(height: 12),
+            
+            CustomTextField(
+              controller: _openingStockController,
+              label: 'Opening Stock',
+              hint: 'Enter quantity',
+              prefixIcon: Icons.inventory,
+              keyboardType: TextInputType.number,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please enter opening stock';
+                }
+                if (double.tryParse(value) == null) {
+                  return 'Please enter a valid number';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 32),
+
+            // Save Button
+            Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [const Color(0xFF1976D2), const Color(0xFF1565C0)],
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: const Color(0xFF1976D2).withOpacity(0.4),
+                    blurRadius: 8,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
+              child: ElevatedButton(
+                onPressed: _isLoading ? null : _saveItem,
+                style: ElevatedButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  backgroundColor: Colors.transparent,
+                  foregroundColor: Colors.white,
+                  shadowColor: Colors.transparent,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: _isLoading
+                    ? const SizedBox(
+                        height: 24,
+                        width: 24,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2.5,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                        ),
+                      )
+                    : Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          Icon(isEditing ? Icons.check_circle : Icons.add_circle,
+                              size: 22),
+                          const SizedBox(width: 8),
+                          Text(
+                            isEditing ? 'Update Item' : 'Add Item',
+                            style: const TextStyle(
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSectionHeader(String title, IconData icon) {
+    return Row(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(8),
+          decoration: BoxDecoration(
+            color: const Color(0xFF1976D2).withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(
+            icon,
+            size: 20,
+            color: const Color(0xFF1976D2),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+            color: Colors.black87,
+          ),
+        ),
+      ],
     );
   }
 
@@ -291,21 +457,42 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Add New Category'),
-        content: TextField(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1976D2).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.add_circle_outline,
+                color: Color(0xFF1976D2),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Add New Category',
+              style: TextStyle(fontSize: 18),
+            ),
+          ],
+        ),
+        content: CustomTextField(
           controller: categoryController,
-          decoration: const InputDecoration(
-            labelText: 'Category Name',
-            hintText: 'Enter category name',
-            border: OutlineInputBorder(),
-          ),
-          textCapitalization: TextCapitalization.characters,
-          autofocus: true,
+          label: 'Category Name',
+          hint: 'Enter category name',
+          prefixIcon: Icons.category,
+          textCapitalization: TextCapitalization.words,
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
           ),
           ElevatedButton(
             onPressed: () async {
@@ -324,7 +511,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
               );
 
               final result = await FirebaseService.createCategory(category);
-              
+
               if (context.mounted) {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
@@ -338,6 +525,13 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
                 }
               }
             },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFF1976D2),
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
             child: const Text('Add'),
           ),
         ],
@@ -350,7 +544,28 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Manage Categories'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: const Color(0xFF1976D2).withOpacity(0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.settings,
+                color: Color(0xFF1976D2),
+                size: 24,
+              ),
+            ),
+            const SizedBox(width: 12),
+            const Text(
+              'Manage Categories',
+              style: TextStyle(fontSize: 18),
+            ),
+          ],
+        ),
         content: SizedBox(
           width: double.maxFinite,
           child: ListView.builder(
@@ -358,23 +573,57 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
             itemCount: categories.length,
             itemBuilder: (context, index) {
               final category = categories[index];
-              // Don't allow deletion of default categories (A, B, C)
               final isDefault = ['a', 'b', 'c'].contains(category.id);
 
-              return ListTile(
-                title: Text(category.name),
-                trailing: isDefault
-                    ? Chip(
-                        label: const Text(
-                          'Default',
-                          style: TextStyle(fontSize: 10),
+              return Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                elevation: 1,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: ListTile(
+                  leading: Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF1976D2).withOpacity(0.1),
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: const Icon(
+                      Icons.category,
+                      color: Color(0xFF1976D2),
+                      size: 20,
+                    ),
+                  ),
+                  title: Text(
+                    category.name,
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14,
+                    ),
+                  ),
+                  trailing: isDefault
+                      ? Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 10,
+                            vertical: 4,
+                          ),
+                          decoration: BoxDecoration(
+                            color: Colors.grey[300],
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: const Text(
+                            'Default',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        )
+                      : IconButton(
+                          icon: Icon(Icons.delete_outline, color: Colors.red.shade600),
+                          onPressed: () => _deleteCategory(context, category),
                         ),
-                        backgroundColor: Colors.grey[300],
-                      )
-                    : IconButton(
-                        icon: const Icon(Icons.delete, color: Colors.red),
-                        onPressed: () => _deleteCategory(context, category),
-                      ),
+                ),
               );
             },
           ),
@@ -393,17 +642,36 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Delete Category'),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 28),
+            SizedBox(width: 12),
+            Text('Delete Category'),
+          ],
+        ),
         content: Text(
-            'Are you sure you want to delete "${category.name}" category?'),
+          'Are you sure you want to delete "${category.name}" category?',
+          style: const TextStyle(fontSize: 15),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: Colors.grey[600]),
+            ),
           ),
-          TextButton(
+          ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Delete', style: TextStyle(color: Colors.red)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+            child: const Text('Delete'),
           ),
         ],
       ),
@@ -415,7 +683,7 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(result)),
         );
-        Navigator.pop(context); // Close manage dialog
+        Navigator.pop(context);
       }
     }
   }
@@ -457,9 +725,16 @@ class _AddEditItemScreenState extends State<AddEditItemScreen> {
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(result)),
+        SnackBar(
+          content: Text(result),
+          backgroundColor: result.contains('successfully')
+              ? Colors.green
+              : Colors.red,
+        ),
       );
-      Navigator.pop(context);
+      if (result.contains('successfully')) {
+        Navigator.pop(context);
+      }
     }
   }
 }

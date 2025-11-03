@@ -84,8 +84,8 @@ class HomeScreen extends StatelessWidget {
             _buildDashboardCard(
               context,
               title: 'GST Purchase Report',
-              icon: Icons.point_of_sale,
-              color: Colors.purple,
+              icon: Icons.book_rounded,
+              color: Colors.orange,
               onTap: () {
                 Navigator.push(
                   context,
@@ -98,7 +98,7 @@ class HomeScreen extends StatelessWidget {
             _buildDashboardCard(
               context,
               title: 'Sales Purchase Report',
-              icon: Icons.point_of_sale,
+              icon: Icons.book,
               color: Colors.purple,
               onTap: () {
                 Navigator.push(

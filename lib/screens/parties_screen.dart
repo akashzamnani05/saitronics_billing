@@ -13,209 +13,441 @@ class PartiesScreen extends StatefulWidget {
 }
 
 class _PartiesScreenState extends State<PartiesScreen> {
-  final TextEditingController _searchController = TextEditingController();
   String _searchQuery = '';
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.grey[100],
       appBar: AppBar(
         title: const Text('Parties'),
-        backgroundColor: Colors.green,
+        backgroundColor: Colors.green.shade600,
         foregroundColor: Colors.white,
+        elevation: 0,
       ),
-      body: Column(
+      body: StreamBuilder<List<Party>>(
+        stream: FirebaseService.getParties(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          final allParties = snapshot.data ?? [];
+          
+          final filteredParties = allParties.where((party) {
+            return _searchQuery.isEmpty ||
+                party.name.toLowerCase().contains(_searchQuery.toLowerCase()) ||
+                party.phone.contains(_searchQuery) ||
+                party.gstNumber.toLowerCase().contains(_searchQuery.toLowerCase());
+          }).toList();
+
+          if (allParties.isEmpty) {
+            return _buildEmptyState();
+          }
+
+          return RefreshIndicator(
+            onRefresh: () async {
+              setState(() {});
+            },
+            child: Column(
+              children: [
+                _buildCompactHeader(allParties),
+                Expanded(
+                  child: filteredParties.isEmpty
+                      ? _buildNoResultsState()
+                      : ListView.builder(
+                          padding: const EdgeInsets.all(8),
+                          itemCount: filteredParties.length,
+                          itemBuilder: (context, index) {
+                            final party = filteredParties[index];
+                            return _buildCompactPartyCard(context, party);
+                          },
+                        ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+      floatingActionButton: FloatingActionButton(
+        onPressed: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const AddEditPartyScreen(),
+            ),
+          );
+        },
+        backgroundColor: Colors.green.shade600,
+        child: const Icon(Icons.add),
+      ),
+    );
+  }
+
+  Widget _buildCompactHeader(List<Party> parties) {
+    final toReceive = parties.fold<double>(
+      0,
+      (sum, party) => sum + (party.balance > 0 ? party.balance : 0),
+    );
+    final toPay = parties.fold<double>(
+      0,
+      (sum, party) => sum + (party.balance < 0 ? party.balance.abs() : 0),
+    );
+
+    return Container(
+      color: Colors.white,
+      child: Column(
         children: [
-          // Compact Search Bar
+          // Stats Row
           Padding(
-            padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+            padding: const EdgeInsets.all(12),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green.shade600, Colors.green.shade700],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.green.withOpacity(0.3),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.arrow_downward,
+                              size: 18,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '₹${_formatNumber(toReceive)}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'To Receive',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withOpacity(0.9),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.red.shade600, Colors.red.shade700],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.red.withOpacity(0.3),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.arrow_upward,
+                              size: 18,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '₹${_formatNumber(toPay)}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'To Pay',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withOpacity(0.9),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Container(
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.blue.shade600, Colors.blue.shade700],
+                        begin: Alignment.topLeft,
+                        end: Alignment.bottomRight,
+                      ),
+                      borderRadius: BorderRadius.circular(10),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.blue.withOpacity(0.3),
+                          blurRadius: 4,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Icon(
+                              Icons.people,
+                              size: 18,
+                              color: Colors.white.withOpacity(0.9),
+                            ),
+                            const Spacer(),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withOpacity(0.2),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                '${parties.length}',
+                                style: const TextStyle(
+                                  fontSize: 16,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 6),
+                        Text(
+                          'Total Parties',
+                          style: TextStyle(
+                            fontSize: 11,
+                            color: Colors.white.withOpacity(0.9),
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          
+          // Search Bar
+          Padding(
+            padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
             child: TextField(
-              controller: _searchController,
               decoration: InputDecoration(
-                hintText: 'Search name, phone, GST...',
+                hintText: 'Search...',
+                hintStyle: const TextStyle(fontSize: 14),
                 prefixIcon: const Icon(Icons.search, size: 20),
                 suffixIcon: _searchQuery.isNotEmpty
                     ? IconButton(
-                        icon: const Icon(Icons.clear, size: 16),
+                        icon: const Icon(Icons.clear, size: 18),
                         onPressed: () {
                           setState(() {
-                            _searchController.clear();
                             _searchQuery = '';
                           });
                         },
                       )
                     : null,
-                isDense: true,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(10),
+                  borderRadius: BorderRadius.circular(8),
                 ),
+                contentPadding: const EdgeInsets.symmetric(vertical: 8),
+                filled: true,
+                fillColor: Colors.grey[50],
+                isDense: true,
               ),
+              style: const TextStyle(fontSize: 14),
               onChanged: (value) {
                 setState(() {
-                  _searchQuery = value.toLowerCase();
+                  _searchQuery = value;
                 });
               },
             ),
           ),
-
-          // Parties List
-          Expanded(
-            child: StreamBuilder<List<Party>>(
-              stream: FirebaseService.getParties(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-
-                final allParties = snapshot.data ?? [];
-                final parties = allParties.where((party) {
-                  if (_searchQuery.isEmpty) return true;
-                  return party.name.toLowerCase().contains(_searchQuery) ||
-                      party.phone.contains(_searchQuery) ||
-                      party.gstNumber.toLowerCase().contains(_searchQuery) ||
-                      party.email.toLowerCase().contains(_searchQuery);
-                }).toList();
-
-                if (allParties.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.people, size: 48, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text('No parties found', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                        Text('Tap + to add', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                      ],
-                    ),
-                  );
-                }
-
-                if (parties.isEmpty) {
-                  return const Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.search_off, size: 48, color: Colors.grey),
-                        SizedBox(height: 12),
-                        Text('No matching parties', style: TextStyle(fontSize: 16, color: Colors.grey)),
-                      ],
-                    ),
-                  );
-                }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.all(6),
-                  itemCount: parties.length,
-                  itemBuilder: (context, index) => _buildCompactPartyCard(context, parties[index]),
-                );
-              },
-            ),
-          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        backgroundColor: Colors.green,
-        mini: true,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const AddEditPartyScreen()),
-          );
-        },
-        child: const Icon(Icons.add),
       ),
     );
   }
 
   Widget _buildCompactPartyCard(BuildContext context, Party party) {
     final balanceColor = party.balance > 0
-        ? Colors.green
+        ? Colors.green.shade700
         : party.balance < 0
-            ? Colors.red
-            : Colors.grey;
+            ? Colors.red.shade700
+            : Colors.grey.shade700;
 
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+      margin: const EdgeInsets.only(bottom: 6),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: InkWell(
+        onLongPress: () => _deleteParty(context, party),
         onTap: () => _showPartyDetails(context, party),
+        borderRadius: BorderRadius.circular(8),
         child: Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
-              CircleAvatar(
-                radius: 16,
-                backgroundColor: Colors.green,
-                child: Text(
-                  party.name[0].toUpperCase(),
-                  style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.white),
+              // Avatar
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade600.withOpacity(0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Icon(
+                  Icons.person,
+                  color: Colors.green.shade600,
+                  size: 20,
                 ),
               ),
-              const SizedBox(width: 10),
+              const SizedBox(width: 12),
+              
+              // Party Info
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       party.name,
-                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    if (party.phone.isNotEmpty)
-                      Text(
-                        party.phone,
-                        style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                      ),
-                    if (party.gstNumber.isNotEmpty)
-                      Text(
-                        'GST: ${party.gstNumber}',
-                        style: TextStyle(fontSize: 10, color: Colors.grey[600]),
-                      ),
                     const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: balanceColor.withOpacity(0.1),
-                        borderRadius: BorderRadius.circular(4),
-                        border: Border.all(color: balanceColor),
-                      ),
-                      child: Text(
-                        party.getBalanceStatus(),
-                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: balanceColor),
-                      ),
+                    Row(
+                      children: [
+                        if (party.phone.isNotEmpty) ...[
+                          Icon(Icons.phone, size: 10, color: Colors.grey[600]),
+                          const SizedBox(width: 3),
+                          Text(
+                            party.phone,
+                            style: TextStyle(
+                              fontSize: 10,
+                              color: Colors.grey[600],
+                            ),
+                          ),
+                        ],
+                        if (party.phone.isNotEmpty && party.gstNumber.isNotEmpty)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: Text('•', style: TextStyle(color: Colors.grey[600])),
+                          ),
+                        if (party.gstNumber.isNotEmpty)
+                          Expanded(
+                            child: Text(
+                              'GST: ${party.gstNumber}',
+                              style: TextStyle(
+                                fontSize: 10,
+                                color: Colors.grey[600],
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                      ],
                     ),
                   ],
                 ),
               ),
+              
+              const SizedBox(width: 8),
+              
+              // Balance
               Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
-                  IconButton(
-                    icon: const Icon(Icons.edit, size: 18, color: Colors.blue),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minHeight: 28, minWidth: 28),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (_) => AddEditPartyScreen(party: party)),
-                      );
-                    },
+                  Text(
+                    party.balance == 0 ? 'Settled' : party.getBalanceStatus(),
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: balanceColor,
+                    ),
                   ),
-                  IconButton(
-                    icon: const Icon(Icons.delete, size: 18, color: Colors.red),
-                    padding: EdgeInsets.zero,
-                    constraints: const BoxConstraints(minHeight: 28, minWidth: 28),
-                    onPressed: () => _deleteParty(context, party),
-                  ),
+                  if (party.balance != 0) ...[
+                    const SizedBox(height: 2),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: balanceColor.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(3),
+                      ),
+                      child: Text(
+                        party.balance > 0 ? 'Receive' : 'Pay',
+                        style: TextStyle(
+                          fontSize: 10,
+                          color: balanceColor,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ],
@@ -232,26 +464,82 @@ class _PartiesScreenState extends State<PartiesScreen> {
       useSafeArea: true,
       backgroundColor: Colors.white,
       shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      builder: (_) => PartyDetailsSheet(party: party),
+      builder: (context) => PartyDetailsSheet(party: party),
+    );
+  }
+
+  String _formatNumber(double value) {
+    if (value >= 100000) {
+      return '${(value / 100000).toStringAsFixed(1)}L';
+    } else if (value >= 1000) {
+      return '${(value / 1000).toStringAsFixed(1)}K';
+    }
+    return value.toStringAsFixed(0);
+  }
+
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.people, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          const Text(
+            'No parties found',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Start by adding your first party',
+            style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildNoResultsState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off, size: 64, color: Colors.grey[400]),
+          const SizedBox(height: 16),
+          const Text(
+            'No parties match your search',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Try adjusting your search',
+            style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+          ),
+        ],
+      ),
     );
   }
 
   void _deleteParty(BuildContext context, Party party) {
     showDialog(
       context: context,
-      builder: (_) => AlertDialog(
+      builder: (context) => AlertDialog(
         title: const Text('Delete Party'),
-        content: Text('Delete "${party.name}"?'),
+        content: Text('Are you sure you want to delete "${party.name}"?'),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () async {
               Navigator.pop(context);
               final result = await FirebaseService.deleteParty(party.id);
               if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(result)),
+                );
               }
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
@@ -263,7 +551,7 @@ class _PartiesScreenState extends State<PartiesScreen> {
 }
 
 // ============================================
-// COMPACT FULL-SCREEN PARTY DETAILS SHEET
+// PARTY DETAILS SHEET WITH TABS
 // ============================================
 class PartyDetailsSheet extends StatefulWidget {
   final Party party;
@@ -280,7 +568,7 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 2, vsync: this);
+    _tabController = TabController(length: 3, vsync: this);
   }
 
   @override
@@ -290,54 +578,104 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
   }
 
   Color get balanceColor => widget.party.balance > 0
-      ? Colors.green
+      ? Colors.green.shade700
       : widget.party.balance < 0
-          ? Colors.red
-          : Colors.grey;
+          ? Colors.red.shade700
+          : Colors.grey.shade700;
 
   @override
   Widget build(BuildContext context) {
     return DraggableScrollableSheet(
-      initialChildSize: 1.0,
-      minChildSize: 0.9,
-      maxChildSize: 1.0,
+      initialChildSize: 0.95,
+      minChildSize: 0.5,
+      maxChildSize: 0.95,
       expand: false,
       builder: (context, scrollController) {
         return Column(
           children: [
             // Compact Header
             Container(
-              padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
+              padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
               decoration: BoxDecoration(
-                color: Colors.green.shade50,
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(16)),
+                color: Colors.white,
+                borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withOpacity(0.05),
+                    blurRadius: 4,
+                    offset: const Offset(0, 2),
+                  ),
+                ],
               ),
               child: Column(
                 children: [
-                  Container(width: 36, height: 4, decoration: BoxDecoration(color: Colors.grey[400], borderRadius: BorderRadius.circular(2))),
-                  const SizedBox(height: 8),
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey[300],
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
                   Row(
                     children: [
-                      CircleAvatar(
-                        radius: 20,
-                        backgroundColor: Colors.green,
-                        child: Text(widget.party.name[0].toUpperCase(), style: const TextStyle(fontSize: 16, color: Colors.white, fontWeight: FontWeight.bold)),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade600.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.person,
+                          color: Colors.green.shade600,
+                          size: 24,
+                        ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(widget.party.name, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-                            if (widget.party.phone.isNotEmpty)
-                              Text(widget.party.phone, style: TextStyle(fontSize: 12, color: Colors.grey[700])),
+                            Text(
+                              widget.party.name,
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              widget.party.getBalanceStatus(),
+                              style: TextStyle(
+                                fontSize: 14,
+                                color: balanceColor,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                           ],
                         ),
                       ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                        decoration: BoxDecoration(color: balanceColor.withOpacity(0.15), borderRadius: BorderRadius.circular(6), border: Border.all(color: balanceColor)),
-                        child: Text(widget.party.getBalanceStatus(), style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: balanceColor)),
+                      Column(
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.edit, size: 20),
+                            color: Colors.green.shade600,
+                            onPressed: () {
+                              Navigator.pop(context);
+                              Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => AddEditPartyScreen(party: widget.party),
+                                ),
+                              );
+                            },
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close, size: 20),
+                            onPressed: () => Navigator.pop(context),
+                          ),
+                        ],
                       ),
                     ],
                   ),
@@ -346,16 +684,20 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
             ),
 
             // Tab Bar
-            TabBar(
-              controller: _tabController,
-              labelColor: Colors.green,
-              unselectedLabelColor: Colors.grey,
-              indicatorColor: Colors.green,
-              labelPadding: const EdgeInsets.symmetric(vertical: 8),
-              tabs: const [
-                Tab(icon: Icon(Icons.history, size: 18), text: 'All'),
-                Tab(icon: Icon(Icons.payment, size: 18), text: 'Unpaid'),
-              ],
+            Container(
+              color: Colors.white,
+              child: TabBar(
+                controller: _tabController,
+                labelColor: Colors.green.shade600,
+                unselectedLabelColor: Colors.grey,
+                indicatorColor: Colors.green.shade600,
+                labelStyle: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
+                tabs: const [
+                  Tab(text: 'Details'),
+                  Tab(text: 'History'),
+                  Tab(text: 'Unpaid'),
+                ],
+              ),
             ),
 
             // Tab Views
@@ -363,7 +705,8 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
               child: TabBarView(
                 controller: _tabController,
                 children: [
-                  _buildAllTransactionsTab(scrollController),
+                  _buildDetailsTab(),
+                  _buildHistoryTab(scrollController),
                   _buildUnpaidTab(scrollController),
                 ],
               ),
@@ -374,47 +717,195 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
     );
   }
 
-  // ALL TRANSACTIONS (Compact + Date Filter)
-  Widget _buildAllTransactionsTab(ScrollController controller) {
+  // DETAILS TAB
+  Widget _buildDetailsTab() {
+    return SingleChildScrollView(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (widget.party.phone.isNotEmpty)
+            _buildDetailCard(Icons.phone, 'Phone', widget.party.phone, Colors.blue),
+          if (widget.party.email.isNotEmpty)
+            _buildDetailCard(Icons.email, 'Email', widget.party.email, Colors.orange),
+          if (widget.party.address.isNotEmpty)
+            _buildDetailCard(Icons.location_on, 'Address', widget.party.address, Colors.red),
+          if (widget.party.gstNumber.isNotEmpty)
+            _buildDetailCard(Icons.receipt_long, 'GST Number', widget.party.gstNumber, Colors.purple),
+          
+          const SizedBox(height: 16),
+          
+          // Balance Card
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                colors: widget.party.balance > 0
+                    ? [Colors.green.shade600, Colors.green.shade700]
+                    : widget.party.balance < 0
+                        ? [Colors.red.shade600, Colors.red.shade700]
+                        : [Colors.grey.shade600, Colors.grey.shade700],
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+              ),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: balanceColor.withOpacity(0.3),
+                  blurRadius: 8,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(
+                      widget.party.balance > 0
+                          ? Icons.arrow_downward
+                          : widget.party.balance < 0
+                              ? Icons.arrow_upward
+                              : Icons.check_circle,
+                      color: Colors.white.withOpacity(0.9),
+                      size: 24,
+                    ),
+                    const SizedBox(width: 8),
+                    Text(
+                      widget.party.balance > 0
+                          ? 'You will receive'
+                          : widget.party.balance < 0
+                              ? 'You will pay'
+                              : 'Settled',
+                      style: TextStyle(
+                        fontSize: 14,
+                        color: Colors.white.withOpacity(0.9),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  '₹${widget.party.balance.abs().toStringAsFixed(2)}',
+                  style: const TextStyle(
+                    fontSize: 32,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.white,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDetailCard(IconData icon, String label, String value, Color color) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: BoxDecoration(
+              color: color.withOpacity(0.2),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(icon, size: 20, color: color),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: Colors.grey[600],
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  value,
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // HISTORY TAB
+  Widget _buildHistoryTab(ScrollController controller) {
     return Column(
       children: [
+        // Date Filter
         Padding(
-          padding: const EdgeInsets.all(8.0),
+          padding: const EdgeInsets.all(12),
           child: Row(
             children: [
               Expanded(
                 child: OutlinedButton.icon(
                   onPressed: _selectDateRange,
-                  icon: const Icon(Icons.date_range, size: 16),
+                  icon: const Icon(Icons.date_range, size: 18),
                   label: Text(
                     _selectedDateRange == null
-                        ? 'Filter'
-                        : '${DateFormat('dd MMM').format(_selectedDateRange!.start)}-${DateFormat('dd MMM').format(_selectedDateRange!.end)}',
-                    style: const TextStyle(fontSize: 12),
+                        ? 'Filter by date'
+                        : '${DateFormat('dd MMM').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM').format(_selectedDateRange!.end)}',
+                    style: const TextStyle(fontSize: 13),
                   ),
                   style: OutlinedButton.styleFrom(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    side: const BorderSide(color: Colors.green),
+                    foregroundColor: Colors.green.shade600,
+                    padding: const EdgeInsets.symmetric(vertical: 10),
+                    side: BorderSide(color: Colors.green.shade600),
                   ),
                 ),
               ),
               if (_selectedDateRange != null)
-                IconButton(icon: const Icon(Icons.clear, size: 16, color: Colors.red), onPressed: () => setState(() => _selectedDateRange = null)),
+                IconButton(
+                  icon: const Icon(Icons.clear, size: 18, color: Colors.red),
+                  onPressed: () => setState(() => _selectedDateRange = null),
+                ),
             ],
           ),
         ),
+        
         Expanded(
           child: StreamBuilder<List<Transaction>>(
             stream: FirebaseService.getTransactionsByParty(widget.party.id),
             builder: (context, snapshot) {
-              if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-              if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(fontSize: 12)));
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
 
               var txns = snapshot.data ?? [];
+              
+              // Apply date filter
               if (_selectedDateRange != null) {
                 final start = _selectedDateRange!.start.subtract(const Duration(days: 1));
                 final end = _selectedDateRange!.end.add(const Duration(days: 1));
-                txns = txns.where((t) => t.transactionDate.isAfter(start) && t.transactionDate.isBefore(end)).toList();
+                txns = txns.where((t) => 
+                  t.transactionDate.isAfter(start) && 
+                  t.transactionDate.isBefore(end)
+                ).toList();
               }
 
               if (txns.isEmpty) {
@@ -422,9 +913,14 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Icon(Icons.receipt_long, size: 40, color: Colors.grey[400]),
-                      const SizedBox(height: 8),
-                      Text(_selectedDateRange == null ? 'No transactions' : 'None in range', style: TextStyle(fontSize: 14, color: Colors.grey[600])),
+                      Icon(Icons.receipt_long, size: 48, color: Colors.grey[400]),
+                      const SizedBox(height: 12),
+                      Text(
+                        _selectedDateRange == null 
+                            ? 'No transactions yet' 
+                            : 'No transactions in selected range',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
                     ],
                   ),
                 );
@@ -432,9 +928,9 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
 
               return ListView.builder(
                 controller: controller,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: txns.length,
-                itemBuilder: (_, i) => _buildCompactTxnCard(txns[i]),
+                itemBuilder: (context, index) => _buildTransactionCard(txns[index]),
               );
             },
           ),
@@ -443,61 +939,119 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
     );
   }
 
-  // UNPAID TAB (Compact)
+  // UNPAID TAB
   Widget _buildUnpaidTab(ScrollController controller) {
     return StreamBuilder<List<Transaction>>(
       stream: FirebaseService.getUnpaidTransactionsByParty(widget.party.id),
       builder: (context, snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) return const Center(child: CircularProgressIndicator());
-        if (snapshot.hasError) return Center(child: Text('Error: ${snapshot.error}', style: const TextStyle(fontSize: 12)));
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Center(child: CircularProgressIndicator());
+        }
+        if (snapshot.hasError) {
+          return Center(child: Text('Error: ${snapshot.error}'));
+        }
 
         final txns = snapshot.data ?? [];
+        
         if (txns.isEmpty) {
           return Center(
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(Icons.check_circle, size: 40, color: Colors.green[400]),
-                const SizedBox(height: 8),
-                const Text('All paid!', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green)),
-                Text('No pending', style: TextStyle(fontSize: 13, color: Colors.grey[600])),
+                Icon(Icons.check_circle, size: 48, color: Colors.green[400]),
+                const SizedBox(height: 12),
+                const Text(
+                  'All cleared!',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.green,
+                  ),
+                ),
+                Text(
+                  'No pending payments',
+                  style: TextStyle(fontSize: 13, color: Colors.grey[600]),
+                ),
               ],
             ),
           );
         }
 
-        final total = txns.fold(0.0, (s, t) => s + t.netAmount);
+        final totalUnpaid = txns.fold(0.0, (sum, t) => sum + t.netAmount);
 
         return Column(
           children: [
+            // Unpaid Summary Card
             Container(
-              margin: const EdgeInsets.all(8),
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(color: Colors.red.shade50, borderRadius: BorderRadius.circular(8), border: Border.all(color: Colors.red.shade200)),
+              margin: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  colors: [Colors.red.shade600, Colors.red.shade700],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                ),
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.red.withOpacity(0.3),
+                    blurRadius: 6,
+                    offset: const Offset(0, 3),
+                  ),
+                ],
+              ),
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Unpaid', style: TextStyle(fontSize: 12)),
-                      Text('₹${total.toStringAsFixed(2)}', style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red)),
+                      Text(
+                        'Total Unpaid',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: Colors.white.withOpacity(0.9),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        '₹${totalUnpaid.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
+                        ),
+                      ),
                     ],
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(color: Colors.red, borderRadius: BorderRadius.circular(12)),
-                    child: Text('${txns.length} pending', style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.bold)),
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      borderRadius: BorderRadius.circular(20),
+                    ),
+                    child: Text(
+                      '${txns.length} pending',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
+            
             Expanded(
               child: ListView.builder(
                 controller: controller,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12),
                 itemCount: txns.length,
-                itemBuilder: (_, i) => _buildCompactTxnCard(txns[i], showPay: true),
+                itemBuilder: (context, index) => _buildTransactionCard(
+                  txns[index],
+                  showPayButton: true,
+                ),
               ),
             ),
           ],
@@ -506,20 +1060,30 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
     );
   }
 
-  // Compact Transaction Card
-  Widget _buildCompactTxnCard(Transaction t, {bool showPay = false}) {
-    final isSale = t.type == TransactionType.sale;
-    final color = isSale ? Colors.green : Colors.orange;
+  Widget _buildTransactionCard(Transaction txn, {bool showPayButton = false}) {
+    final isSale = txn.type == TransactionType.sale;
+    final color = isSale ? Colors.green.shade700 : Colors.orange.shade700;
     final icon = isSale ? Icons.arrow_downward : Icons.arrow_upward;
 
     return Card(
-      margin: const EdgeInsets.symmetric(vertical: 3),
+      margin: const EdgeInsets.only(bottom: 8),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(8),
+      ),
       child: Padding(
-        padding: const EdgeInsets.all(8),
+        padding: const EdgeInsets.all(12),
         child: Row(
           children: [
-            CircleAvatar(radius: 14, backgroundColor: color.withOpacity(0.1), child: Icon(icon, size: 16, color: color)),
-            const SizedBox(width: 8),
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(6),
+              ),
+              child: Icon(icon, size: 18, color: color),
+            ),
+            const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -527,43 +1091,99 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Text(t.invoiceNumber, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
-                      Text('₹${t.netAmount.toStringAsFixed(0)}', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: color)),
+                      Text(
+                        txn.invoiceNumber,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      Text(
+                        '₹${txn.netAmount.toStringAsFixed(0)}',
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.bold,
+                          color: color,
+                        ),
+                      ),
                     ],
                   ),
+                  const SizedBox(height: 4),
                   Row(
                     children: [
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
-                        decoration: BoxDecoration(color: color.withOpacity(0.1), borderRadius: BorderRadius.circular(3)),
-                        child: Text(t.typeLabel, style: TextStyle(fontSize: 9, color: color, fontWeight: FontWeight.bold)),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: color.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(3),
+                        ),
+                        child: Text(
+                          txn.typeLabel,
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: color,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                      const SizedBox(width: 6),
-                      Text(DateFormat('dd MMM').format(t.transactionDate), style: TextStyle(fontSize: 10, color: Colors.grey[600])),
+                      const SizedBox(width: 8),
+                      Icon(Icons.calendar_today, size: 10, color: Colors.grey[600]),
+                      const SizedBox(width: 3),
+                      Text(
+                        DateFormat('dd MMM yyyy').format(txn.transactionDate),
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.grey[600],
+                        ),
+                      ),
                       const Spacer(),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: t.isPaid ? Colors.green.withOpacity(0.1) : Colors.red.withOpacity(0.1),
-                          borderRadius: BorderRadius.circular(4),
-                          border: Border.all(color: t.isPaid ? Colors.green : Colors.red),
+                          color: txn.isPaid 
+                              ? Colors.green.withOpacity(0.1) 
+                              : Colors.red.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(3),
+                          border: Border.all(
+                            color: txn.isPaid ? Colors.green : Colors.red,
+                          ),
                         ),
-                        child: Text(t.isPaid ? 'Paid' : 'Unpaid', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: t.isPaid ? Colors.green : Colors.red)),
+                        child: Text(
+                          txn.isPaid ? 'Paid' : 'Unpaid',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.bold,
+                            color: txn.isPaid ? Colors.green : Colors.red,
+                          ),
+                        ),
                       ),
                     ],
                   ),
                 ],
               ),
             ),
-            if (showPay && !t.isPaid)
+            if (showPayButton && !txn.isPaid) ...[
+              const SizedBox(width: 8),
               SizedBox(
-                height: 28,
-                child: TextButton(
-                  onPressed: () => _markAsPaid(t),
-                  style: TextButton.styleFrom(padding: const EdgeInsets.symmetric(horizontal: 8), backgroundColor: Colors.green, foregroundColor: Colors.white, minimumSize: const Size(0, 0)),
-                  child: const Text('Pay', style: TextStyle(fontSize: 10)),
+                height: 32,
+                child: ElevatedButton(
+                  onPressed: () => _markAsPaid(txn),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.green.shade600,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(horizontal: 12),
+                    minimumSize: const Size(0, 0),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                  ),
+                  child: const Text(
+                    'Pay',
+                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
                 ),
               ),
+            ],
           ],
         ),
       ),
@@ -576,26 +1196,54 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
       firstDate: DateTime(2020),
       lastDate: DateTime.now().add(const Duration(days: 365)),
       initialDateRange: _selectedDateRange,
-      builder: (context, child) => Theme(data: Theme.of(context).copyWith(colorScheme: const ColorScheme.light(primary: Colors.green)), child: child!),
+      builder: (context, child) => Theme(
+        data: Theme.of(context).copyWith(
+          colorScheme: ColorScheme.light(primary: Colors.green.shade600),
+        ),
+        child: child!,
+      ),
     );
-    if (picked != null) setState(() => _selectedDateRange = picked);
+    if (picked != null) {
+      setState(() => _selectedDateRange = picked);
+    }
   }
 
-  Future<void> _markAsPaid(Transaction t) async {
+  Future<void> _markAsPaid(Transaction txn) async {
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (_) => AlertDialog(
-        title: const Text('Mark Paid'),
-        content: Text('Mark ${t.invoiceNumber} paid?\n₹${t.netAmount.toStringAsFixed(2)}'),
+      builder: (context) => AlertDialog(
+        title: const Text('Mark as Paid'),
+        content: Text(
+          'Mark invoice ${txn.invoiceNumber} as paid?\n\nAmount: ₹${txn.netAmount.toStringAsFixed(2)}',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-          ElevatedButton(onPressed: () => Navigator.pop(context, true), style: ElevatedButton.styleFrom(backgroundColor: Colors.green), child: const Text('Paid')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.green.shade600,
+            ),
+            child: const Text('Mark Paid'),
+          ),
         ],
       ),
     );
+    
     if (confirm != true) return;
 
-    final result = await FirebaseService.updateTransactionPaymentStatus(t.id, true, 'Cash');
-    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(result)));
+    final result = await FirebaseService.updateTransactionPaymentStatus(
+      txn.id,
+      true,
+      'Cash',
+    );
+    
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(result)),
+      );
+    }
   }
 }
