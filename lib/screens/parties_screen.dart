@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:printing/printing.dart';
 import 'package:saitronics_billing/models/party.dart';
 import 'package:saitronics_billing/models/transaction.dart';
+import 'package:saitronics_billing/utils/party_history_pdf_generator.dart';
 import '../services/firebase_service.dart';
 import 'add_edit_party_screen.dart';
 
@@ -856,34 +858,83 @@ class _PartyDetailsSheetState extends State<PartyDetailsSheet> with SingleTicker
       children: [
         // Date Filter
         Padding(
-          padding: const EdgeInsets.all(12),
-          child: Row(
-            children: [
-              Expanded(
-                child: OutlinedButton.icon(
-                  onPressed: _selectDateRange,
-                  icon: const Icon(Icons.date_range, size: 18),
-                  label: Text(
-                    _selectedDateRange == null
-                        ? 'Filter by date'
-                        : '${DateFormat('dd MMM').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM').format(_selectedDateRange!.end)}',
-                    style: const TextStyle(fontSize: 13),
-                  ),
-                  style: OutlinedButton.styleFrom(
-                    foregroundColor: Colors.green.shade600,
-                    padding: const EdgeInsets.symmetric(vertical: 10),
-                    side: BorderSide(color: Colors.green.shade600),
-                  ),
-                ),
-              ),
-              if (_selectedDateRange != null)
-                IconButton(
-                  icon: const Icon(Icons.clear, size: 18, color: Colors.red),
-                  onPressed: () => setState(() => _selectedDateRange = null),
-                ),
-            ],
+  padding: const EdgeInsets.all(12),
+  child: Row(
+    children: [
+      // ---------- existing Filter button ----------
+      Expanded(
+        child: OutlinedButton.icon(
+          onPressed: _selectDateRange,
+          icon: const Icon(Icons.date_range, size: 18),
+          label: Text(
+            _selectedDateRange == null
+                ? 'Filter by date'
+                : '${DateFormat('dd MMM').format(_selectedDateRange!.start)} - ${DateFormat('dd MMM').format(_selectedDateRange!.end)}',
+            style: const TextStyle(fontSize: 13),
+          ),
+          style: OutlinedButton.styleFrom(
+            foregroundColor: Colors.green.shade600,
+            padding: const EdgeInsets.symmetric(vertical: 10),
+            side: BorderSide(color: Colors.green.shade600),
           ),
         ),
+      ),
+
+      // ---------- clear filter ----------
+      if (_selectedDateRange != null)
+        IconButton(
+          icon: const Icon(Icons.clear, size: 18, color: Colors.red),
+          onPressed: () => setState(() => _selectedDateRange = null),
+        ),
+
+      const SizedBox(width: 8),
+
+      // ---------- NEW DOWNLOAD BUTTON ----------
+      SizedBox(
+        width: 48,
+        child: OutlinedButton(
+          onPressed: () async {
+            // collect the same list that is shown in the UI
+            final snapshot = await FirebaseService.getTransactionsByParty(widget.party.id).first;
+            var txns = snapshot ?? [];
+
+            if (_selectedDateRange != null) {
+              final start = _selectedDateRange!.start.subtract(const Duration(days: 1));
+              final end   = _selectedDateRange!.end.add(const Duration(days: 1));
+              txns = txns
+                  .where((t) => t.transactionDate.isAfter(start) && t.transactionDate.isBefore(end))
+                  .toList();
+            }
+
+            if (txns.isEmpty) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('No transactions to export')),
+              );
+              return;
+            }
+
+            final pdfBytes = await PdfGenerator.createPartyHistoryPdf(
+              party: widget.party,
+              transactions: txns,
+              dateRange: _selectedDateRange,
+            );
+
+            await Printing.layoutPdf(
+              onLayout: (format) async => pdfBytes,
+              name:
+                  '${widget.party.name.replaceAll(' ', '_')}_history_${_selectedDateRange == null ? 'all' : '${DateFormat('ddMMMyyyy').format(_selectedDateRange!.start)}-${DateFormat('ddMMMyyyy').format(_selectedDateRange!.end)}'}.pdf',
+            );
+          },
+          style: OutlinedButton.styleFrom(
+            padding: EdgeInsets.zero,
+            side: BorderSide(color: Colors.green.shade600),
+          ),
+          child: const Icon(Icons.download, size: 18, color: Colors.green),
+        ),
+      ),
+    ],
+  ),
+),
         
         Expanded(
           child: StreamBuilder<List<Transaction>>(
