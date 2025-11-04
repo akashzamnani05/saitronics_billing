@@ -5,6 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:saitronics_billing/models/purchase_invoice.dart';
 import 'package:saitronics_billing/models/sales_invoice.dart';
 import 'package:saitronics_billing/models/item.dart';
+import 'package:saitronics_billing/models/user_role.dart';
+import 'package:saitronics_billing/services/auth_service.dart';
 
 import 'GST_purchase_report.dart';
 import 'GST_sales_report.dart';
@@ -31,8 +33,40 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
         elevation: 2,
+        actions: [
+          FutureBuilder<AppUser?>(
+    future: AuthService.getCurrentAppUser(),
+    builder: (context, snapshot) {
+      final user = snapshot.data;
+      return PopupMenuButton(
+        child: Padding(
+          padding: EdgeInsets.all(8),
+          child: Row(
+            children: [
+              Icon(user?.role == UserRole.admin 
+                ? Icons.admin_panel_settings 
+                : Icons.business_center),
+              SizedBox(width: 8),
+              Text(user?.roleLabel ?? ''),
+            ],
+          ),
+        ),
+        itemBuilder: (context) => [
+          PopupMenuItem(
+            child: Text('Logout'),
+            onTap: () async {
+              await AuthService.logout();
+              // Will automatically redirect to login
+            },
+          ),
+        ],
+      );
+    },
+  ),
+        ],
       ),
       drawer: _buildSidebar(context),
+
       body: RefreshIndicator(
         onRefresh: () async => Future.delayed(const Duration(seconds: 1)),
         child: SingleChildScrollView(

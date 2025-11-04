@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saitronics_billing/models/party.dart';
 import 'package:saitronics_billing/models/sales_invoice.dart';
+import 'package:saitronics_billing/services/auth_service.dart';
 import 'package:saitronics_billing/services/firebase_service.dart';
 import 'package:saitronics_billing/utils/GST_sales_report_generator.dart';
 // import 'package:saitronics_billing/utils/GST_sales_report_generator.dart';
@@ -213,60 +214,93 @@ class _GSTSalesReportState extends State<GSTSalesReport> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Sales Report'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.file_download),
-            onPressed: _showExportOptions,
-            tooltip: 'Export Report',
+    return FutureBuilder(
+      future: AuthService.isAdmin(),
+      builder: (context, snapshot) {
+
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+
+        if (snapshot.data != true) {
+          // Not admin, show access denied
+          return Scaffold(
+            appBar: AppBar(title: const Text('Access Denied')),
+            body: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.block, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
+                  Text(
+                    'Admin Access Required',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                  ),
+                  SizedBox(height: 8),
+                  Text('You do not have permission to access this page.'),
+                ],
+              ),
+            ),
+          );
+        }
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Sales Report'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.file_download),
+                onPressed: _showExportOptions,
+                tooltip: 'Export Report',
+              ),
+            ],
           ),
-        ],
-      ),
-      body: Column(
-        children: [
-          _buildFilterSection(),
-          Expanded(
-            child: StreamBuilder<List<SalesInvoice>>(
-              stream: FirebaseService.getSalesInvoices(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
-
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
-
-                if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return const Center(child: Text('No sales invoices found'));
-                }
-
-                final allInvoices = snapshot.data!;
-                _filteredInvoices = _filterInvoices(allInvoices);
-
-                // ✅ Preload all parties before rendering
-                return FutureBuilder(
-                  future: _preloadParties(),
-                  builder: (context, partySnapshot) {
-                    if (partySnapshot.connectionState == ConnectionState.waiting) {
+          body: Column(
+            children: [
+              _buildFilterSection(),
+              Expanded(
+                child: StreamBuilder<List<SalesInvoice>>(
+                  stream: FirebaseService.getSalesInvoices(),
+                  builder: (context, snapshot) {
+                    if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator());
                     }
-
-                    return Column(
-                      children: [
-                        _buildSummaryCard(),
-                        Expanded(child: _buildReportTable()),
-                      ],
+        
+                    if (snapshot.hasError) {
+                      return Center(child: Text('Error: ${snapshot.error}'));
+                    }
+        
+                    if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                      return const Center(child: Text('No sales invoices found'));
+                    }
+        
+                    final allInvoices = snapshot.data!;
+                    _filteredInvoices = _filterInvoices(allInvoices);
+        
+                    // ✅ Preload all parties before rendering
+                    return FutureBuilder(
+                      future: _preloadParties(),
+                      builder: (context, partySnapshot) {
+                        if (partySnapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+        
+                        return Column(
+                          children: [
+                            _buildSummaryCard(),
+                            Expanded(child: _buildReportTable()),
+                          ],
+                        );
+                      },
                     );
                   },
-                );
-              },
-            ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      }
     );
   }
 

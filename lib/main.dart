@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:saitronics_billing/screens/auth_wrapper.dart';
 import 'firebase_options.dart';
-import 'screens/home_screen.dart';
+
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -40,7 +41,7 @@ class SaitronicsApp extends StatelessWidget {
           fillColor: Colors.grey[50],
         ),
       ),
-      home: const HomeScreen(),
+      home: const AuthWrapper(),
     );
   }
 }

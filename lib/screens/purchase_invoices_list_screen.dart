@@ -2,6 +2,7 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saitronics_billing/models/purchase_invoice.dart';
+import 'package:saitronics_billing/services/auth_service.dart';
 import 'package:saitronics_billing/utils/purchase_invoice_pdf_generator.dart';
 import '../services/firebase_service.dart';
 import 'create_purchase_invoice_screen.dart';
@@ -155,368 +156,399 @@ class _PurchaseInvoicesListScreenState extends State<PurchaseInvoicesListScreen>
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Purchase Invoices'),
-        backgroundColor: Colors.orange,
-        foregroundColor: Colors.white,
-        elevation: 0,
-      ),
-      body: StreamBuilder<List<PurchaseInvoice>>(
-        stream: FirebaseService.getPurchaseInvoices(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final invoices = snapshot.data ?? [];
-
-          if (invoices.isEmpty) {
-            return Center(
+    return FutureBuilder(
+      future: AuthService.isAdmin(),
+      builder: (context, snapshot) {
+        if (snapshot.connectionState == ConnectionState.waiting) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
+        if (snapshot.data != true) {
+          // Not admin, show access denied
+          return Scaffold(
+            appBar: AppBar(title: const Text('Access Denied')),
+            body: const Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.receipt_long, size: 80, color: Colors.grey[300]),
-                  const SizedBox(height: 24),
-                  const Text(
-                    'No purchase invoices yet',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.grey),
-                  ),
-                  const SizedBox(height: 8),
+                  Icon(Icons.block, size: 64, color: Colors.red),
+                  SizedBox(height: 16),
                   Text(
-                    'Create your first purchase invoice',
-                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                    'Admin Access Required',
+                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
                   ),
+                  SizedBox(height: 8),
+                  Text('You do not have permission to access this page.'),
                 ],
               ),
-            );
-          }
-
-          return ListView.builder(
-            padding: const EdgeInsets.all(12),
-            itemCount: invoices.length,
-            itemBuilder: (context, index) {
-              final invoice = invoices[index];
-              return InkWell(
-                onLongPress: () => _deleteInvoice(context, invoice),
-                child: Card(
-                  margin: const EdgeInsets.only(bottom: 12),
-                  elevation: 2,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
+            ),
+          );
+        }
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('Purchase Invoices'),
+            backgroundColor: Colors.orange,
+            foregroundColor: Colors.white,
+            elevation: 0,
+          ),
+          body: StreamBuilder<List<PurchaseInvoice>>(
+            stream: FirebaseService.getPurchaseInvoices(),
+            builder: (context, snapshot) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+        
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
+        
+              final invoices = snapshot.data ?? [];
+        
+              if (invoices.isEmpty) {
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.receipt_long, size: 80, color: Colors.grey[300]),
+                      const SizedBox(height: 24),
+                      const Text(
+                        'No purchase invoices yet',
+                        style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600, color: Colors.grey),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        'Create your first purchase invoice',
+                        style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                      ),
+                    ],
                   ),
-                  child: Theme(
-                    data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
-                    child: ExpansionTile(
-                      tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                      childrenPadding: const EdgeInsets.all(0),
-                      leading: Container(
-                        width: 50,
-                        height: 50,
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [Colors.orange[400]!, Colors.orange[600]!],
-                            begin: Alignment.topLeft,
-                            end: Alignment.bottomRight,
-                          ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Center(
-                          child: Text(
-                            invoice.partyName[0].toUpperCase(),
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontSize: 22,
-                              fontWeight: FontWeight.bold,
+                );
+              }
+        
+              return ListView.builder(
+                padding: const EdgeInsets.all(12),
+                itemCount: invoices.length,
+                itemBuilder: (context, index) {
+                  final invoice = invoices[index];
+                  return InkWell(
+                    onLongPress: () => _deleteInvoice(context, invoice),
+                    child: Card(
+                      margin: const EdgeInsets.only(bottom: 12),
+                      elevation: 2,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                      child: Theme(
+                        data: Theme.of(context).copyWith(dividerColor: Colors.transparent),
+                        child: ExpansionTile(
+                          tilePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          childrenPadding: const EdgeInsets.all(0),
+                          leading: Container(
+                            width: 50,
+                            height: 50,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [Colors.orange[400]!, Colors.orange[600]!],
+                                begin: Alignment.topLeft,
+                                end: Alignment.bottomRight,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Center(
+                              child: Text(
+                                invoice.partyName[0].toUpperCase(),
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 22,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                      title: Text(
-                        invoice.partyName,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.bold,
-                          fontSize: 16,
-                        ),
-                      ),
-                      subtitle: Padding(
-                        padding: const EdgeInsets.only(top: 6),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
+                          title: Text(
+                            invoice.partyName,
+                            style: const TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 16,
+                            ),
+                          ),
+                          subtitle: Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                                  decoration: BoxDecoration(
-                                    color: Colors.orange[50],
-                                    borderRadius: BorderRadius.circular(4),
-                                  ),
-                                  child: Text(
-                                    invoice.invoiceNumber,
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.w600,
-                                      color: Colors.orange[700],
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: Colors.orange[50],
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        invoice.invoiceNumber,
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.w600,
+                                          color: Colors.orange[700],
+                                        ),
+                                      ),
                                     ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
-                                const SizedBox(width: 4),
-                                Text(
-                                  DateFormat('dd MMM yyyy').format(invoice.invoiceDate),
-                                  style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    const SizedBox(width: 8),
+                                    Icon(Icons.calendar_today, size: 12, color: Colors.grey[600]),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      DateFormat('dd MMM yyyy').format(invoice.invoiceDate),
+                                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),
-                          ],
-                        ),
-                      ),
-                      trailing: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.end,
-                        children: [
-                          Text(
-                            '₹${invoice.total.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 18,
-                              color: Colors.orange,
-                            ),
                           ),
-                          const SizedBox(height: 4),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: Colors.grey[200],
-                              borderRadius: BorderRadius.circular(10),
-                            ),
-                            child: Text(
-                              '${invoice.items.length} items',
-                              style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w500),
-                            ),
-                          ),
-                        ],
-                      ),
-                      children: [
-                        Container(
-                          decoration: BoxDecoration(
-                            color: Colors.grey[50],
-                            borderRadius: const BorderRadius.only(
-                              bottomLeft: Radius.circular(12),
-                              bottomRight: Radius.circular(12),
-                            ),
-                          ),
-                          child: Column(
+                          trailing: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.end,
                             children: [
-                              const Divider(height: 1),
-                              Padding(
-                                padding: const EdgeInsets.all(16),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // Download Button
-                                    Container(
-                                      width: double.infinity,
-                                      child: ElevatedButton.icon(
-                                        onPressed: () => _downloadPdf(context, invoice),
-                                        icon: const Icon(Icons.picture_as_pdf, size: 20),
-                                        label: const Text('Download PDF', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
-                                        style: ElevatedButton.styleFrom(
-                                          backgroundColor: Colors.orange,
-                                          foregroundColor: Colors.white,
-                                          padding: const EdgeInsets.symmetric(vertical: 12),
-                                          shape: RoundedRectangleBorder(
-                                            borderRadius: BorderRadius.circular(8),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(height: 20),
-                                    
-                                    // Items Section Header
-                                    Row(
-                                      children: [
-                                        Container(
-                                          width: 4,
-                                          height: 20,
-                                          decoration: BoxDecoration(
-                                            color: Colors.orange,
-                                            borderRadius: BorderRadius.circular(2),
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        const Text(
-                                          'Invoice Items',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 12),
-                                    
-                                    // Horizontally Scrollable Items Table
-                                    Container(
-                                      decoration: BoxDecoration(
-                                        border: Border.all(color: Colors.grey[300]!),
-                                        borderRadius: BorderRadius.circular(8),
-                                        color: Colors.white,
-                                      ),
-                                      child: SingleChildScrollView(
-                                        scrollDirection: Axis.horizontal,
-                                        child: DataTable(
-                                          headingRowColor: MaterialStateProperty.all(Colors.orange[50]),
-                                          headingRowHeight: 40,
-                                          dataRowHeight: 55,
-                                          columnSpacing: 20,
-                                          horizontalMargin: 12,
-                                          columns: const [
-                                            DataColumn(
-                                              label: Text(
-                                                'Item Name',
-                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                              ),
-                                            ),
-                                            DataColumn(
-                                              label: Text(
-                                                'HSN Code',
-                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                              ),
-                                            ),
-                                            DataColumn(
-                                              label: Text(
-                                                'Quantity',
-                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                              ),
-                                              numeric: true,
-                                            ),
-                                            DataColumn(
-                                              label: Text(
-                                                'GST %',
-                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                              ),
-                                              numeric: true,
-                                            ),
-                                            DataColumn(
-                                              label: Text(
-                                                'Amount',
-                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                                              ),
-                                              numeric: true,
-                                            ),
-                                          ],
-                                          rows: invoice.items.map((item) {
-                                            return DataRow(
-                                              cells: [
-                                                DataCell(
-                                                  SizedBox(
-                                                    width: 150,
-                                                    child: Text(
-                                                      item.itemName,
-                                                      style: const TextStyle(fontWeight: FontWeight.w500),
-                                                      overflow: TextOverflow.ellipsis,
-                                                    ),
-                                                  ),
-                                                ),
-                                                DataCell(Text(item.hsnCode)),
-                                                DataCell(Text(item.quantity.toStringAsFixed(0))),
-                                                DataCell(Text('${item.gstPercent}%')),
-                                                DataCell(
-                                                  Text(
-                                                    '₹${item.total.toStringAsFixed(2)}',
-                                                    style: const TextStyle(fontWeight: FontWeight.bold),
-                                                  ),
-                                                ),
-                                              ],
-                                            );
-                                          }).toList(),
-                                        ),
-                                      ),
-                                    ),
-                                    
-                                    const SizedBox(height: 20),
-                                    
-                                    // Summary Section
-                                    Container(
-                                      padding: const EdgeInsets.all(16),
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        borderRadius: BorderRadius.circular(8),
-                                        border: Border.all(color: Colors.grey[300]!),
-                                      ),
-                                      child: Column(
-                                        children: [
-                                          _buildSummaryRow('Taxable Amount', '₹${invoice.subtotal.toStringAsFixed(2)}'),
-                                          const SizedBox(height: 8),
-                                          _buildSummaryRow('SGST @9%', '₹${(invoice.totalGst / 2).toStringAsFixed(2)}'),
-                                          const SizedBox(height: 8),
-                                          _buildSummaryRow('CGST @9%', '₹${(invoice.totalGst / 2).toStringAsFixed(2)}'),
-                                          if (invoice.discount > 0) ...[
-                                            const SizedBox(height: 8),
-                                            _buildSummaryRow('Discount', '- ₹${invoice.discount.toStringAsFixed(2)}', color: Colors.red),
-                                          ],
-                                          const Padding(
-                                            padding: EdgeInsets.symmetric(vertical: 12),
-                                            child: Divider(height: 1, thickness: 1.5),
-                                          ),
-                                          Row(
-                                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                            children: [
-                                              const Text(
-                                                'Total Amount',
-                                                style: TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 17,
-                                                ),
-                                              ),
-                                              Text(
-                                                '₹${invoice.total.toStringAsFixed(2)}',
-                                                style: const TextStyle(
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 20,
-                                                  color: Colors.orange,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ],
-                                      ),
-                                    ),
-                                  ],
+                              Text(
+                                '₹${invoice.total.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 18,
+                                  color: Colors.orange,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: Colors.grey[200],
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Text(
+                                  '${invoice.items.length} items',
+                                  style: const TextStyle(fontSize: 9, fontWeight: FontWeight.w500),
                                 ),
                               ),
                             ],
                           ),
+                          children: [
+                            Container(
+                              decoration: BoxDecoration(
+                                color: Colors.grey[50],
+                                borderRadius: const BorderRadius.only(
+                                  bottomLeft: Radius.circular(12),
+                                  bottomRight: Radius.circular(12),
+                                ),
+                              ),
+                              child: Column(
+                                children: [
+                                  const Divider(height: 1),
+                                  Padding(
+                                    padding: const EdgeInsets.all(16),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        // Download Button
+                                        Container(
+                                          width: double.infinity,
+                                          child: ElevatedButton.icon(
+                                            onPressed: () => _downloadPdf(context, invoice),
+                                            icon: const Icon(Icons.picture_as_pdf, size: 20),
+                                            label: const Text('Download PDF', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
+                                            style: ElevatedButton.styleFrom(
+                                              backgroundColor: Colors.orange,
+                                              foregroundColor: Colors.white,
+                                              padding: const EdgeInsets.symmetric(vertical: 12),
+                                              shape: RoundedRectangleBorder(
+                                                borderRadius: BorderRadius.circular(8),
+                                              ),
+                                            ),
+                                          ),
+                                        ),
+                                        const SizedBox(height: 20),
+                                        
+                                        // Items Section Header
+                                        Row(
+                                          children: [
+                                            Container(
+                                              width: 4,
+                                              height: 20,
+                                              decoration: BoxDecoration(
+                                                color: Colors.orange,
+                                                borderRadius: BorderRadius.circular(2),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 8),
+                                            const Text(
+                                              'Invoice Items',
+                                              style: TextStyle(
+                                                fontWeight: FontWeight.bold,
+                                                fontSize: 16,
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 12),
+                                        
+                                        // Horizontally Scrollable Items Table
+                                        Container(
+                                          decoration: BoxDecoration(
+                                            border: Border.all(color: Colors.grey[300]!),
+                                            borderRadius: BorderRadius.circular(8),
+                                            color: Colors.white,
+                                          ),
+                                          child: SingleChildScrollView(
+                                            scrollDirection: Axis.horizontal,
+                                            child: DataTable(
+                                              headingRowColor: MaterialStateProperty.all(Colors.orange[50]),
+                                              headingRowHeight: 40,
+                                              dataRowHeight: 55,
+                                              columnSpacing: 20,
+                                              horizontalMargin: 12,
+                                              columns: const [
+                                                DataColumn(
+                                                  label: Text(
+                                                    'Item Name',
+                                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                  ),
+                                                ),
+                                                DataColumn(
+                                                  label: Text(
+                                                    'HSN Code',
+                                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                  ),
+                                                ),
+                                                DataColumn(
+                                                  label: Text(
+                                                    'Quantity',
+                                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                  ),
+                                                  numeric: true,
+                                                ),
+                                                DataColumn(
+                                                  label: Text(
+                                                    'GST %',
+                                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                  ),
+                                                  numeric: true,
+                                                ),
+                                                DataColumn(
+                                                  label: Text(
+                                                    'Amount',
+                                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                                  ),
+                                                  numeric: true,
+                                                ),
+                                              ],
+                                              rows: invoice.items.map((item) {
+                                                return DataRow(
+                                                  cells: [
+                                                    DataCell(
+                                                      SizedBox(
+                                                        width: 150,
+                                                        child: Text(
+                                                          item.itemName,
+                                                          style: const TextStyle(fontWeight: FontWeight.w500),
+                                                          overflow: TextOverflow.ellipsis,
+                                                        ),
+                                                      ),
+                                                    ),
+                                                    DataCell(Text(item.hsnCode)),
+                                                    DataCell(Text(item.quantity.toStringAsFixed(0))),
+                                                    DataCell(Text('${item.gstPercent}%')),
+                                                    DataCell(
+                                                      Text(
+                                                        '₹${item.total.toStringAsFixed(2)}',
+                                                        style: const TextStyle(fontWeight: FontWeight.bold),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                );
+                                              }).toList(),
+                                            ),
+                                          ),
+                                        ),
+                                        
+                                        const SizedBox(height: 20),
+                                        
+                                        // Summary Section
+                                        Container(
+                                          padding: const EdgeInsets.all(16),
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(color: Colors.grey[300]!),
+                                          ),
+                                          child: Column(
+                                            children: [
+                                              _buildSummaryRow('Taxable Amount', '₹${invoice.subtotal.toStringAsFixed(2)}'),
+                                              const SizedBox(height: 8),
+                                              _buildSummaryRow('SGST @9%', '₹${(invoice.totalGst / 2).toStringAsFixed(2)}'),
+                                              const SizedBox(height: 8),
+                                              _buildSummaryRow('CGST @9%', '₹${(invoice.totalGst / 2).toStringAsFixed(2)}'),
+                                              if (invoice.discount > 0) ...[
+                                                const SizedBox(height: 8),
+                                                _buildSummaryRow('Discount', '- ₹${invoice.discount.toStringAsFixed(2)}', color: Colors.red),
+                                              ],
+                                              const Padding(
+                                                padding: EdgeInsets.symmetric(vertical: 12),
+                                                child: Divider(height: 1, thickness: 1.5),
+                                              ),
+                                              Row(
+                                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                                children: [
+                                                  const Text(
+                                                    'Total Amount',
+                                                    style: TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 17,
+                                                    ),
+                                                  ),
+                                                  Text(
+                                                    '₹${invoice.total.toStringAsFixed(2)}',
+                                                    style: const TextStyle(
+                                                      fontWeight: FontWeight.bold,
+                                                      fontSize: 20,
+                                                      color: Colors.orange,
+                                                    ),
+                                                  ),
+                                                ],
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
+                      ),
                     ),
-                  ),
+                  );
+                },
+              );
+            },
+          ),
+          floatingActionButton: FloatingActionButton.extended(
+            backgroundColor: Colors.orange,
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => const CreatePurchaseInvoiceScreen(),
                 ),
               );
             },
-          );
-        },
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.orange,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const CreatePurchaseInvoiceScreen(),
-            ),
-          );
-        },
-        icon: const Icon(Icons.add),
-        label: const Text('New Invoice'),
-      ),
+            icon: const Icon(Icons.add),
+            label: const Text('New Invoice'),
+          ),
+        );
+      }
     );
   }
 

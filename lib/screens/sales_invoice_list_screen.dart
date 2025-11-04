@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saitronics_billing/models/sales_invoice.dart';
 import 'package:saitronics_billing/utils/sales_invoice_pdf_generator.dart';
+import 'package:saitronics_billing/widgets/role_based_widget.dart';
 import '../services/firebase_service.dart';
 import 'create_sales_invoice_screen.dart';
 
@@ -52,6 +53,13 @@ class SalesInvoicesListScreen extends StatelessWidget {
   }
 
   Future<void> _deleteInvoice(BuildContext context, SalesInvoice invoice) async {
+    final allowed = await checkPermissionWithDialog(
+    context,
+    (user) => user.canDeleteItems,
+    'delete items',
+  );
+  
+  if (!allowed) return;
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
