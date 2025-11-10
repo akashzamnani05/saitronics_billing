@@ -41,13 +41,14 @@ class DefaultFirebaseOptions {
   }
 
   static const FirebaseOptions web = FirebaseOptions(
-    apiKey: 'AIzaSyAki7Ov0lcmHPpiKz05VKzo7Fs-8GjgmEg',
-    appId: '1:920202245192:web:20b64c014321ab9eb9147d',
-    messagingSenderId: '920202245192',
-    projectId: 'saitronics-billing',
-    authDomain: 'saitronics-billing.firebaseapp.com',
-    storageBucket: 'saitronics-billing.firebasestorage.app',
-    measurementId: 'G-2KR8CZLJ5S',
+    apiKey: "AIzaSyAki7Ov0lcmHPpiKz05VKzo7Fs-8GjgmEg",
+  authDomain: "saitronics-billing.firebaseapp.com",
+  projectId: "saitronics-billing",
+ storageBucket: 'saitronics-billing.appspot.com',
+
+  messagingSenderId: "920202245192",
+  appId: "1:920202245192:web:20b64c014321ab9eb9147d",
+  measurementId: "G-2KR8CZLJ5S"
   );
 
   static const FirebaseOptions android = FirebaseOptions(
