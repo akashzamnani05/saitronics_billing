@@ -199,6 +199,9 @@ class PurchaseInvoicePdfGenerator {
                   'Place of Supply: $placeOfSupply',
                   style: const pw.TextStyle(fontSize: 9),
                 ),
+                if(party.gstNumber.isNotEmpty)
+                pw.Text('GSTIN: ${party.gstNumber}',
+                    style: const pw.TextStyle(fontSize: 9)),
               ],
             ),
           ),

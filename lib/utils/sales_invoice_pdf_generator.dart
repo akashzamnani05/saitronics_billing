@@ -22,7 +22,7 @@ class SalesInvoicePdfGenerator {
   static const String companyMobile = "9359023027";
   static const String companyGSTIN = "27AAEPZ9949F1ZW";
   static const String companyPAN = "AAEPZ9949F";
-  static const String companyEmail = "saitronics.nashik@gmail.com";
+  // static const String companyEmail = "saitronics.nashik@gmail.com";
   static const String placeOfSupply = "Maharashtra";
 
   // ──────────────────────────────────────────────────────────────
@@ -110,8 +110,8 @@ class SalesInvoicePdfGenerator {
                     style: const pw.TextStyle(fontSize: 9)),
                 pw.Text('PAN Number: $companyPAN',
                     style: const pw.TextStyle(fontSize: 9)),
-                pw.Text('Email: $companyEmail',
-                    style: const pw.TextStyle(fontSize: 9)),
+                // pw.Text('Email: $companyEmail',
+                //     style: const pw.TextStyle(fontSize: 9)),
               ],
             ),
           ),
@@ -170,6 +170,10 @@ class SalesInvoicePdfGenerator {
                     style: const pw.TextStyle(fontSize: 9)),
                 pw.SizedBox(height: 2),
                 pw.Text('Place of Supply: $placeOfSupply',
+                    style: const pw.TextStyle(fontSize: 9)),
+                    pw.SizedBox(height: 2),
+                if(party.gstNumber.isNotEmpty)
+                pw.Text('GSTIN: ${party.gstNumber}',
                     style: const pw.TextStyle(fontSize: 9)),
               ],
             ),

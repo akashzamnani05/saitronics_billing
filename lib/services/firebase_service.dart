@@ -533,6 +533,108 @@ static Future<String> updateTransactionPaymentStatus(
     return 'Error updating payment status: $e';
   }
 }
+
+
+static Future<String> updateSalesInvoice(
+  SalesInvoice newInvoice,
+  SalesInvoice oldInvoice,
+) async {
+  try {
+    WriteBatch batch = _firestore.batch();
+
+    // Update the invoice document
+    batch.update(
+      _salesInvoicesCollection.doc(newInvoice.id),
+      newInvoice.toMap(),
+    );
+
+    // Calculate inventory changes
+    // First, restore stock from old invoice
+    for (var oldItem in oldInvoice.items) {
+      final itemDoc = _itemsCollection.doc(oldItem.itemId);
+      final itemSnapshot = await itemDoc.get();
+
+      if (itemSnapshot.exists) {
+        final currentStock =
+            (itemSnapshot.data() as Map<String, dynamic>)['currentStock'] ?? 0;
+        
+        // Add back the old quantity
+        batch.update(itemDoc, {
+          'currentStock': currentStock + oldItem.quantity,
+          'updatedAt': Timestamp.now(),
+        });
+      }
+    }
+
+    // Commit the batch to restore stock
+    await batch.commit();
+
+    // Create new batch for deducting new quantities
+    batch = _firestore.batch();
+
+    // Check stock availability and deduct new quantities
+    for (var newItem in newInvoice.items) {
+      final itemDoc = _itemsCollection.doc(newItem.itemId);
+      final itemSnapshot = await itemDoc.get();
+
+      if (itemSnapshot.exists) {
+        final currentStock =
+            (itemSnapshot.data() as Map<String, dynamic>)['currentStock'] ?? 0;
+
+        if (currentStock < newItem.quantity) {
+          return 'Insufficient stock for ${newItem.itemName}. Available: $currentStock';
+        }
+
+        // Deduct the new quantity
+        batch.update(itemDoc, {
+          'currentStock': currentStock - newItem.quantity,
+          'updatedAt': Timestamp.now(),
+        });
+      } else {
+        return 'Item ${newItem.itemName} not found';
+      }
+    }
+
+    await batch.commit();
+    return 'Sales invoice updated and inventory adjusted successfully';
+  } catch (e) {
+    return 'Error updating sales invoice: $e';
+  }
 }
 
+// Get transactions by invoice ID
+static Stream<List<Transaction>> getTransactionsByInvoiceId(String invoiceId) {
+  return _transactionsCollection
+      .where('invoiceId', isEqualTo: invoiceId)
+      .snapshots()
+      .map((snapshot) {
+    return snapshot.docs.map((doc) {
+      return Transaction.fromMap(doc.data() as Map<String, dynamic>);
+    }).toList();
+  });
+}
 
+// Update Transaction
+static Future<String> updateTransaction(
+  String transactionId,
+  double newAmount,
+  bool isPaid,
+  String? paymentMethod,
+  double discount,
+  int itemCount,
+) async {
+  try {
+    await _transactionsCollection.doc(transactionId).update({
+      'amount': newAmount,
+      'isPaid': isPaid,
+      'paymentMethod': paymentMethod,
+      'discount': discount,
+      'itemCount': itemCount,
+    });
+    return 'Transaction updated successfully';
+  } catch (e) {
+    return 'Error updating transaction: $e';
+  }
+}
+
+}

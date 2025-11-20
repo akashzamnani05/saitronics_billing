@@ -215,15 +215,15 @@ class _AddEditPartyScreenState extends State<AddEditPartyScreen> {
                   hint: 'e.g., contact@company.com',
                   prefixIcon: Icons.email_rounded,
                   keyboardType: TextInputType.emailAddress,
-                  validator: (value) {
-                    if (value == null || value.isEmpty) {
-                      return 'Please enter email';
-                    }
-                    if (!value.contains('@') || !value.contains('.')) {
-                      return 'Please enter a valid email';
-                    }
-                    return null;
-                  },
+                  // validator: (value) {
+                  //   if (value == null || value.isEmpty) {
+                  //     return 'Please enter email';
+                  //   }
+                  //   if (!value.contains('@') || !value.contains('.')) {
+                  //     return 'Please enter a valid email';
+                  //   }
+                  //   return null;
+                  // },
                 ),
               ],
             ),
