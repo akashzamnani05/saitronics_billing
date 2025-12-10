@@ -207,7 +207,7 @@ class SalesInvoicePdfGenerator {
     );
   }
 
-  static pw.Widget _buildItemRow(InvoiceItem item) {
+  static pw.Widget _buildItemRow(InvoiceItem item, String salesPersonName) {
   final base = item.total / (1 + item.gstPercent / 100);
   final gstAmt = item.total - base;
 
@@ -248,11 +248,20 @@ class SalesInvoicePdfGenerator {
             ],
           ),
         ),
-        // HSN column - UPDATED: same flex and alignment as header
+        // HSN column
         pw.Expanded(
-          flex: 4,
+          flex: 3,
           child: pw.Text(
             item.hsnCode,
+            style: const pw.TextStyle(fontSize: 9),
+            textAlign: pw.TextAlign.center,
+          ),
+        ),
+        // SALESPERSON column - NEW
+        pw.Expanded(
+          flex: 3,
+          child: pw.Text(
+            salesPersonName.isNotEmpty ? salesPersonName : '-',
             style: const pw.TextStyle(fontSize: 9),
             textAlign: pw.TextAlign.center,
           ),
@@ -313,7 +322,7 @@ class SalesInvoicePdfGenerator {
   //  Items Table
   // ──────────────────────────────────────────────────────────────
  static pw.Widget _buildItemsTable(SalesInvoice invoice) {
-  final rows = invoice.items.map(_buildItemRow).toList();
+  final rows = invoice.items.map((item) => _buildItemRow(item, invoice.salesPersonName)).toList();
 
   return pw.Container(
     decoration: pw.BoxDecoration(
@@ -333,8 +342,14 @@ class SalesInvoicePdfGenerator {
                       style: pw.TextStyle(
                           fontSize: 9, fontWeight: pw.FontWeight.bold))),
               pw.Expanded(
-                  flex: 4,
+                  flex: 3,
                   child: pw.Text('HSN',
+                      style: pw.TextStyle(
+                          fontSize: 9, fontWeight: pw.FontWeight.bold),
+                      textAlign: pw.TextAlign.center)),
+              pw.Expanded(
+                  flex: 3,
+                  child: pw.Text('SALESPERSON',
                       style: pw.TextStyle(
                           fontSize: 9, fontWeight: pw.FontWeight.bold),
                       textAlign: pw.TextAlign.center)),
@@ -367,7 +382,7 @@ class SalesInvoicePdfGenerator {
         ),
         // Item rows
         ...rows,
-        // Subtotal row - UPDATED for proper alignment
+        // Subtotal row
         pw.Container(
           padding: const pw.EdgeInsets.symmetric(horizontal: 8, vertical: 6),
           decoration: const pw.BoxDecoration(
@@ -386,7 +401,9 @@ class SalesInvoicePdfGenerator {
                           fontSize: 10, fontWeight: pw.FontWeight.bold),
                       textAlign: pw.TextAlign.left)),
               // HSN column - empty for subtotal
-              pw.Expanded(flex: 4, child: pw.Container()),
+              pw.Expanded(flex: 3, child: pw.Container()),
+              // SALESPERSON column - empty for subtotal
+              pw.Expanded(flex: 3, child: pw.Container()),
               // QTY column - show total quantity
               pw.Expanded(
                   flex: 1,
@@ -496,41 +513,40 @@ class SalesInvoicePdfGenerator {
         ],
       ),
       
-      // NEW: Signature box
-     // NEW: Signature box
-pw.SizedBox(height: 30),
-pw.Row(
-  mainAxisAlignment: pw.MainAxisAlignment.end,
-  children: [
-    pw.Column(
-      crossAxisAlignment: pw.CrossAxisAlignment.end,
-      children: [
-        pw.Container(
-          width: 200,
-          height: 80,
-          decoration: pw.BoxDecoration(
-            border: pw.Border.all(color: PdfColors.grey600),
+      // Signature box
+      pw.SizedBox(height: 30),
+      pw.Row(
+        mainAxisAlignment: pw.MainAxisAlignment.end,
+        children: [
+          pw.Column(
+            crossAxisAlignment: pw.CrossAxisAlignment.end,
+            children: [
+              pw.Container(
+                width: 200,
+                height: 80,
+                decoration: pw.BoxDecoration(
+                  border: pw.Border.all(color: PdfColors.grey600),
+                ),
+              ),
+              pw.SizedBox(height: 8),
+              pw.Text(
+                'AUTHORISED SIGNATORY FOR',
+                style: pw.TextStyle(
+                  fontSize: 9,
+                  fontWeight: pw.FontWeight.bold,
+                ),
+              ),
+              pw.Text(
+                companyName,
+                style: pw.TextStyle(
+                  fontSize: 10,
+                  fontWeight: pw.FontWeight.normal,
+                ),
+              ),
+            ],
           ),
-        ),
-        pw.SizedBox(height: 8),
-        pw.Text(
-          'AUTHORISED SIGNATORY FOR',
-          style: pw.TextStyle(
-            fontSize: 9,
-            fontWeight: pw.FontWeight.bold,
-          ),
-        ),
-        pw.Text(
-          companyName,
-          style: pw.TextStyle(
-            fontSize: 10,
-            fontWeight: pw.FontWeight.normal,
-          ),
-        ),
-      ],
-    ),
-  ],
-),
+        ],
+      ),
     ],
   );
 }

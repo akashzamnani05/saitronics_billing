@@ -11,6 +11,7 @@ class SalesInvoice {
   final DateTime createdAt;
   final double discount;
   final double? finalAmount; // Editable final amount
+  final String salesPersonName; // New field for salesperson name
 
   SalesInvoice({
     required this.id,
@@ -22,6 +23,7 @@ class SalesInvoice {
     required this.createdAt,
     this.discount = 0.0,
     this.finalAmount, // Optional - if null, uses calculated grandTotal
+    this.salesPersonName = '', // Default to empty string
   });
 
   double get subtotal => items.fold(0, (sum, item) => sum + item.subtotal);
@@ -43,6 +45,7 @@ class SalesInvoice {
       'createdAt': Timestamp.fromDate(createdAt),
       'discount': discount,
       'finalAmount': finalAmount, // Store the editable final amount
+      'salesPersonName': salesPersonName, // Store salesperson name
     };
   }
 
@@ -59,6 +62,7 @@ class SalesInvoice {
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       discount: (map['discount'] ?? 0).toDouble(),
       finalAmount: map['finalAmount'] != null ? (map['finalAmount'] as num).toDouble() : null,
+      salesPersonName: map['salesPersonName'] ?? '', // Load salesperson name
     );
   }
 
@@ -73,6 +77,7 @@ class SalesInvoice {
     DateTime? createdAt,
     double? discount,
     double? finalAmount,
+    String? salesPersonName,
   }) {
     return SalesInvoice(
       id: id ?? this.id,
@@ -84,6 +89,7 @@ class SalesInvoice {
       createdAt: createdAt ?? this.createdAt,
       discount: discount ?? this.discount,
       finalAmount: finalAmount ?? this.finalAmount,
+      salesPersonName: salesPersonName ?? this.salesPersonName,
     );
   }
 }

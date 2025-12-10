@@ -5,20 +5,16 @@ import 'package:saitronics_billing/models/sales_invoice.dart';
 import 'package:saitronics_billing/utils/sales_invoice_pdf_generator.dart';
 import 'package:saitronics_billing/widgets/role_based_widget.dart';
 import '../services/firebase_service.dart';
-import 'create_sales_invoice_screen.dart';
-import 'edit_sales_invoice_screen.dart';
 
+class TodaySalesInvoicesScreen extends StatelessWidget {
+  final DateTime startDate;
+  final DateTime endDate;
 
-class SalesInvoicesListScreen extends StatefulWidget {
-  const SalesInvoicesListScreen({super.key});
-
-  @override
-  State<SalesInvoicesListScreen> createState() => _SalesInvoicesListScreenState();
-}
-
-class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
-  DateTime? _startDate;
-  DateTime? _endDate;
+  const TodaySalesInvoicesScreen({
+    super.key,
+    required this.startDate,
+    required this.endDate,
+  });
 
   Future<void> _downloadPdf(
       BuildContext context, SalesInvoice invoice) async {
@@ -70,7 +66,7 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
     );
 
     if (!allowed) return;
-    
+
     final confirm = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -103,7 +99,6 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
         ),
       );
 
-      // Update party balance - subtract the invoice total
       final partyDoc = await FirebaseFirestore.instance
           .collection('parties')
           .doc(invoice.partyId)
@@ -117,12 +112,10 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
           List<String> transactionHistory =
               List<String>.from(partyData['transactionHistory'] ?? []);
 
-          // Remove the transaction entry for this invoice
           transactionHistory.removeWhere((entry) {
             return entry.contains('Invoice: ${invoice.invoiceNumber}');
           });
 
-          // Subtract the invoice amount from balance
           double newBalance = currentBalance - invoice.grandTotal;
 
           await FirebaseFirestore.instance
@@ -136,7 +129,6 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
         }
       }
 
-      // Restore inventory - add back the quantities
       for (var item in invoice.items) {
         final currentItem = await FirebaseService.getItemById(item.itemId);
         if (currentItem != null) {
@@ -147,18 +139,7 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
         }
       }
 
-      // Delete the invoice
       await FirebaseService.deleteSalesInvoice(invoice.id);
-
-      // Delete associated transaction
-      final transactionQuery = await FirebaseFirestore.instance
-          .collection('transactions')
-          .where('invoiceId', isEqualTo: invoice.id)
-          .get();
-
-      for (var doc in transactionQuery.docs) {
-        await FirebaseService.deleteTransaction(doc.id);
-      }
 
       if (context.mounted) {
         Navigator.pop(context);
@@ -185,200 +166,150 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
     }
   }
 
-  Future<void> _showDateFilterDialog() async {
-    final result = await showDialog<Map<String, DateTime?>>(
-      context: context,
-      builder: (context) => _DateFilterDialog(
-        initialStartDate: _startDate,
-        initialEndDate: _endDate,
-      ),
-    );
-
-    if (result != null) {
-      setState(() {
-        _startDate = result['start'];
-        _endDate = result['end'];
-      });
-    }
-  }
-
-  void _clearFilters() {
-    setState(() {
-      _startDate = null;
-      _endDate = null;
-    });
-  }
-
-  Stream<List<SalesInvoice>> _getFilteredInvoices() {
-    if (_startDate != null && _endDate != null) {
-      // Apply date filter
-      return FirebaseFirestore.instance
-          .collection('salesInvoices')
-          .where('invoiceDate',
-              isGreaterThanOrEqualTo: Timestamp.fromDate(_startDate!))
-          .where('invoiceDate',
-              isLessThanOrEqualTo: Timestamp.fromDate(_endDate!))
-          .orderBy('invoiceDate', descending: true)
-          .snapshots()
-          .map((snapshot) {
-        return snapshot.docs.map((doc) {
-          return SalesInvoice.fromMap(doc.data());
-        }).toList();
-      });
-    } else {
-      // No filter, return all invoices
-      return FirebaseService.getSalesInvoices();
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
-    final hasActiveFilter = _startDate != null && _endDate != null;
-
+    final dateFormat = DateFormat('dd MMM yyyy');
+    
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Sales Invoices'),
+        title: Text('Sales - ${dateFormat.format(startDate)}'),
         backgroundColor: Colors.purple,
         foregroundColor: Colors.white,
         elevation: 0,
-        actions: [
-          // Filter button with badge
-          Stack(
-            children: [
-              IconButton(
-                icon: const Icon(Icons.filter_list),
-                onPressed: _showDateFilterDialog,
-                tooltip: 'Filter by date',
-              ),
-              if (hasActiveFilter)
-                Positioned(
-                  right: 8,
-                  top: 8,
-                  child: Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: Colors.orange,
-                      shape: BoxShape.circle,
-                      border: Border.all(color: Colors.white, width: 1),
-                    ),
-                  ),
-                ),
-            ],
-          ),
-          if (hasActiveFilter)
-            IconButton(
-              icon: const Icon(Icons.clear),
-              onPressed: _clearFilters,
-              tooltip: 'Clear filters',
-            ),
-        ],
       ),
-      body: Column(
-        children: [
-          // Active filter chip
-          if (hasActiveFilter)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-              decoration: BoxDecoration(
-                color: Colors.purple.shade50,
-                border: Border(
-                  bottom: BorderSide(color: Colors.purple.shade100),
-                ),
-              ),
-              child: Wrap(
-                spacing: 8,
-                crossAxisAlignment: WrapCrossAlignment.center,
+      body: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+        stream: FirebaseFirestore.instance
+            .collection('salesInvoices')
+            .where('invoiceDate',
+                isGreaterThanOrEqualTo: Timestamp.fromDate(startDate))
+            .where('invoiceDate',
+                isLessThanOrEqualTo: Timestamp.fromDate(endDate))
+            .orderBy('invoiceDate', descending: true)
+            .snapshots(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
+
+          final invoices = snapshot.data?.docs
+                  .map((doc) => SalesInvoice.fromMap(doc.data()))
+                  .toList() ??
+              [];
+
+          if (invoices.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.filter_list, size: 16, color: Colors.purple.shade700),
-                  Text(
-                    'Filtered: ${DateFormat('dd MMM yyyy').format(_startDate!)} - ${DateFormat('dd MMM yyyy').format(_endDate!)}',
+                  Icon(Icons.receipt_long, size: 80, color: Colors.grey[300]),
+                  const SizedBox(height: 24),
+                  const Text(
+                    'No sales invoices today',
                     style: TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.purple.shade700,
-                    ),
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.grey),
                   ),
-                  InkWell(
-                    onTap: _clearFilters,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.purple.shade100,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            'Clear',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.purple.shade700,
-                            ),
-                          ),
-                          const SizedBox(width: 4),
-                          Icon(
-                            Icons.close,
-                            size: 12,
-                            color: Colors.purple.shade700,
-                          ),
-                        ],
-                      ),
-                    ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Sales invoices will appear here',
+                    style: TextStyle(fontSize: 14, color: Colors.grey[600]),
                   ),
                 ],
               ),
-            ),
-          
-          // Invoice list
-          Expanded(
-            child: StreamBuilder<List<SalesInvoice>>(
-              stream: _getFilteredInvoices(),
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+            );
+          }
 
-                if (snapshot.hasError) {
-                  return Center(child: Text('Error: ${snapshot.error}'));
-                }
+          // Calculate totals
+          final totalAmount = invoices.fold(0.0, (sum, inv) => sum + inv.grandTotal);
+          final totalGst = invoices.fold(0.0, (sum, inv) => sum + inv.totalGst);
 
-                final invoices = snapshot.data ?? [];
-
-                if (invoices.isEmpty) {
-                  return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
+          return Column(
+            children: [
+              // Summary Card
+              Container(
+                margin: const EdgeInsets.all(16),
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: [Colors.purple[400]!, Colors.purple[600]!],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.purple.withOpacity(0.3),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Icon(Icons.receipt_long,
-                            size: 80, color: Colors.grey[300]),
-                        const SizedBox(height: 24),
-                        Text(
-                          hasActiveFilter
-                              ? 'No invoices in selected date range'
-                              : 'No sales invoices yet',
-                          style: const TextStyle(
-                              fontSize: 20,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.grey),
+                        const Text(
+                          'Total Sales',
+                          style: TextStyle(
+                            color: Colors.white,
+                            fontSize: 16,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
-                        const SizedBox(height: 8),
-                        Text(
-                          hasActiveFilter
-                              ? 'Try changing the date filter'
-                              : 'Create your first sales invoice',
-                          style: TextStyle(fontSize: 14, color: Colors.grey[600]),
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.white.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${invoices.length} invoice${invoices.length == 1 ? '' : 's'}',
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
                       ],
                     ),
-                  );
-                }
+                    const SizedBox(height: 12),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Text(
+                          '₹${totalAmount.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 32,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          'GST: ₹${totalGst.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: Colors.white.withOpacity(0.9),
+                            fontSize: 14,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
 
-                return ListView.builder(
-                  padding: const EdgeInsets.all(12),
+              // Invoices List
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                   itemCount: invoices.length,
                   itemBuilder: (context, index) {
                     final invoice = invoices[index];
@@ -454,11 +385,11 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
                                         ),
                                       ),
                                       const SizedBox(width: 8),
-                                      Icon(Icons.calendar_today,
+                                      Icon(Icons.access_time,
                                           size: 12, color: Colors.grey[600]),
                                       const SizedBox(width: 4),
                                       Text(
-                                        DateFormat('dd MMM yyyy')
+                                        DateFormat('hh:mm a')
                                             .format(invoice.invoiceDate),
                                         style: TextStyle(
                                             fontSize: 12,
@@ -492,8 +423,7 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
                                   child: Text(
                                     '${invoice.items.length} items',
                                     style: const TextStyle(
-                                        fontSize: 9,
-                                        fontWeight: FontWeight.w500),
+                                        fontSize: 9, fontWeight: FontWeight.w500),
                                   ),
                                 ),
                               ],
@@ -516,70 +446,29 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
                                         crossAxisAlignment:
                                             CrossAxisAlignment.start,
                                         children: [
-                                          // Action Buttons Row
-                                          Row(
-                                            children: [
-                                              // Edit Button
-                                              
-                                              // Download Button
-                                              Expanded(
-                                                child: ElevatedButton.icon(
-                                                  onPressed: () => _downloadPdf(
-                                                      context, invoice),
-                                                  icon: const Icon(
-                                                      Icons.picture_as_pdf,
-                                                      size: 18),
-                                                  label: const Text('PDF',
-                                                      style: TextStyle(
-                                                          fontSize: 14,
-                                                          fontWeight:
-                                                              FontWeight.w600)),
-                                                  style: ElevatedButton.styleFrom(
-                                                    backgroundColor:
-                                                        Colors.purple,
-                                                    foregroundColor: Colors.white,
-                                                    padding: const EdgeInsets
-                                                        .symmetric(vertical: 12),
-                                                    shape: RoundedRectangleBorder(
-                                                      borderRadius:
-                                                          BorderRadius.circular(
-                                                              8),
-                                                    ),
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                          const SizedBox(height: 12),
-                                          // Edit Button
+                                          // Download Button
                                           SizedBox(
                                             width: double.infinity,
-                                            child: AdminOnlyWidget(
-                                              child: OutlinedButton.icon(
-                                                onPressed: () {
-                                                  Navigator.push(
-                                                    context,
-                                                    MaterialPageRoute(
-                                                      builder: (context) => EditSalesInvoiceScreen(invoice: invoice),
-                                                    ),
-                                                  );
-                                                },
-                                                icon: const Icon(Icons.edit, size: 20),
-                                                label: const Text('Edit Invoice',
-                                                    style: TextStyle(
-                                                        fontSize: 15,
-                                                        fontWeight:
-                                                            FontWeight.w600)),
-                                                style: OutlinedButton.styleFrom(
-                                                  foregroundColor: Colors.purple,
-                                                  side: const BorderSide(color: Colors.purple, width: 2),
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                          vertical: 12),
-                                                  shape: RoundedRectangleBorder(
-                                                    borderRadius:
-                                                        BorderRadius.circular(8),
-                                                  ),
+                                            child: ElevatedButton.icon(
+                                              onPressed: () =>
+                                                  _downloadPdf(context, invoice),
+                                              icon: const Icon(
+                                                  Icons.picture_as_pdf,
+                                                  size: 20),
+                                              label: const Text('Download PDF',
+                                                  style: TextStyle(
+                                                      fontSize: 15,
+                                                      fontWeight:
+                                                          FontWeight.w600)),
+                                              style: ElevatedButton.styleFrom(
+                                                backgroundColor: Colors.purple,
+                                                foregroundColor: Colors.white,
+                                                padding:
+                                                    const EdgeInsets.symmetric(
+                                                        vertical: 12),
+                                                shape: RoundedRectangleBorder(
+                                                  borderRadius:
+                                                      BorderRadius.circular(8),
                                                 ),
                                               ),
                                             ),
@@ -610,7 +499,7 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
                                           ),
                                           const SizedBox(height: 12),
 
-                                          // Horizontally Scrollable Items Table
+                                          // Items Table
                                           Container(
                                             decoration: BoxDecoration(
                                               border: Border.all(
@@ -696,10 +585,8 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
                                                           ),
                                                         ),
                                                       ),
-                                                      DataCell(
-                                                          Text(item.hsnCode)),
-                                                      DataCell(Text(item
-                                                          .quantity
+                                                      DataCell(Text(item.hsnCode)),
+                                                      DataCell(Text(item.quantity
                                                           .toStringAsFixed(0))),
                                                       DataCell(Text(
                                                           '${item.gstPercent}%')),
@@ -755,8 +642,7 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
                                                   padding: EdgeInsets.symmetric(
                                                       vertical: 12),
                                                   child: Divider(
-                                                      height: 1,
-                                                      thickness: 1.5),
+                                                      height: 1, thickness: 1.5),
                                                 ),
                                                 Row(
                                                   mainAxisAlignment:
@@ -766,16 +652,14 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
                                                     const Text(
                                                       'Total Amount',
                                                       style: TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
+                                                        fontWeight: FontWeight.bold,
                                                         fontSize: 17,
                                                       ),
                                                     ),
                                                     Text(
                                                       '₹${invoice.grandTotal.toStringAsFixed(2)}',
                                                       style: const TextStyle(
-                                                        fontWeight:
-                                                            FontWeight.bold,
+                                                        fontWeight: FontWeight.bold,
                                                         fontSize: 20,
                                                         color: Colors.purple,
                                                       ),
@@ -797,24 +681,11 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
                       ),
                     );
                   },
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton.extended(
-        backgroundColor: Colors.purple,
-        onPressed: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const CreateSalesInvoiceScreen(),
-            ),
+                ),
+              ),
+            ],
           );
         },
-        icon: const Icon(Icons.add),
-        label: const Text('New Invoice'),
       ),
     );
   }
@@ -836,371 +707,6 @@ class _SalesInvoicesListScreenState extends State<SalesInvoicesListScreen> {
           ),
         ),
       ],
-    );
-  }
-}
-
-// Date Filter Dialog
-class _DateFilterDialog extends StatefulWidget {
-  final DateTime? initialStartDate;
-  final DateTime? initialEndDate;
-
-  const _DateFilterDialog({
-    this.initialStartDate,
-    this.initialEndDate,
-  });
-
-  @override
-  State<_DateFilterDialog> createState() => _DateFilterDialogState();
-}
-
-class _DateFilterDialogState extends State<_DateFilterDialog> {
-  DateTime? _startDate;
-  DateTime? _endDate;
-
-  @override
-  void initState() {
-    super.initState();
-    _startDate = widget.initialStartDate;
-    _endDate = widget.initialEndDate;
-  }
-
-  Future<void> _selectStartDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _startDate ?? DateTime.now(),
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.purple,
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        _startDate = DateTime(picked.year, picked.month, picked.day, 0, 0, 0);
-        // If end date is before start date, clear it
-        if (_endDate != null && _endDate!.isBefore(_startDate!)) {
-          _endDate = null;
-        }
-      });
-    }
-  }
-
-  Future<void> _selectEndDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _endDate ?? _startDate ?? DateTime.now(),
-      firstDate: _startDate ?? DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.light(
-              primary: Colors.purple,
-              onPrimary: Colors.white,
-              onSurface: Colors.black,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (picked != null) {
-      setState(() {
-        _endDate = DateTime(picked.year, picked.month, picked.day, 23, 59, 59);
-      });
-    }
-  }
-
-  void _setQuickFilter(String filter) {
-    final now = DateTime.now();
-    setState(() {
-      switch (filter) {
-        case 'today':
-          _startDate = DateTime(now.year, now.month, now.day, 0, 0, 0);
-          _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-          break;
-        case 'yesterday':
-          final yesterday = now.subtract(const Duration(days: 1));
-          _startDate = DateTime(yesterday.year, yesterday.month, yesterday.day, 0, 0, 0);
-          _endDate = DateTime(yesterday.year, yesterday.month, yesterday.day, 23, 59, 59);
-          break;
-        case 'this_week':
-          final weekDay = now.weekday;
-          final startOfWeek = now.subtract(Duration(days: weekDay - 1));
-          _startDate = DateTime(startOfWeek.year, startOfWeek.month, startOfWeek.day, 0, 0, 0);
-          _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-          break;
-        case 'this_month':
-          _startDate = DateTime(now.year, now.month, 1, 0, 0, 0);
-          _endDate = DateTime(now.year, now.month, now.day, 23, 59, 59);
-          break;
-        case 'last_month':
-          final lastMonth = DateTime(now.year, now.month - 1);
-          final lastDayOfMonth = DateTime(now.year, now.month, 0);
-          _startDate = DateTime(lastMonth.year, lastMonth.month, 1, 0, 0, 0);
-          _endDate = DateTime(lastDayOfMonth.year, lastDayOfMonth.month, lastDayOfMonth.day, 23, 59, 59);
-          break;
-      }
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final canApply = _startDate != null && _endDate != null;
-
-    return Dialog(
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Icon(Icons.filter_list, color: Colors.purple.shade700),
-                const SizedBox(width: 8),
-                const Text(
-                  'Filter by Date',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Quick Filters
-            const Text(
-              'Quick Filters',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _QuickFilterChip(
-                  label: 'Today',
-                  onTap: () => _setQuickFilter('today'),
-                ),
-                _QuickFilterChip(
-                  label: 'Yesterday',
-                  onTap: () => _setQuickFilter('yesterday'),
-                ),
-                _QuickFilterChip(
-                  label: 'This Week',
-                  onTap: () => _setQuickFilter('this_week'),
-                ),
-                _QuickFilterChip(
-                  label: 'This Month',
-                  onTap: () => _setQuickFilter('this_month'),
-                ),
-                _QuickFilterChip(
-                  label: 'Last Month',
-                  onTap: () => _setQuickFilter('last_month'),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-
-            // Custom Date Range
-            const Text(
-              'Custom Range',
-              style: TextStyle(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: Colors.grey,
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // Start Date
-            InkWell(
-              onTap: _selectStartDate,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today,
-                        size: 20, color: Colors.purple.shade700),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'Start Date',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _startDate != null
-                                ? DateFormat('dd MMM yyyy').format(_startDate!)
-                                : 'Select start date',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: _startDate != null
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              color: _startDate != null
-                                  ? Colors.black
-                                  : Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-
-            // End Date
-            InkWell(
-              onTap: _selectEndDate,
-              child: Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  border: Border.all(color: Colors.grey.shade300),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.calendar_today,
-                        size: 20, color: Colors.purple.shade700),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          const Text(
-                            'End Date',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: Colors.grey,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            _endDate != null
-                                ? DateFormat('dd MMM yyyy').format(_endDate!)
-                                : 'Select end date',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: _endDate != null
-                                  ? FontWeight.w600
-                                  : FontWeight.normal,
-                              color:
-                                  _endDate != null ? Colors.black : Colors.grey,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 24),
-
-            // Action Buttons
-            Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: const Text('Cancel'),
-                ),
-                const SizedBox(width: 8),
-                ElevatedButton(
-                  onPressed: canApply
-                      ? () {
-                          Navigator.pop(context, {
-                            'start': _startDate,
-                            'end': _endDate,
-                          });
-                        }
-                      : null,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.purple,
-                    foregroundColor: Colors.white,
-                    disabledBackgroundColor: Colors.grey.shade300,
-                    padding: const EdgeInsets.symmetric(
-                        horizontal: 24, vertical: 12),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text('Apply Filter'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// Quick Filter Chip Widget
-class _QuickFilterChip extends StatelessWidget {
-  final String label;
-  final VoidCallback onTap;
-
-  const _QuickFilterChip({
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(20),
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          color: Colors.purple.shade50,
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(color: Colors.purple.shade200),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: FontWeight.w600,
-            color: Colors.purple.shade700,
-          ),
-        ),
-      ),
     );
   }
 }

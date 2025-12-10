@@ -1,46 +1,61 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:saitronics_billing/models/invoice_item.dart';
 import 'package:saitronics_billing/models/item.dart';
 import 'package:saitronics_billing/models/party.dart';
 import 'package:saitronics_billing/models/sales_invoice.dart';
-import 'package:saitronics_billing/models/transaction.dart';
-import 'package:saitronics_billing/screens/add_edit_party_screen.dart';
 import 'package:saitronics_billing/utils/sales_invoice_pdf_generator.dart';
-import 'package:uuid/uuid.dart';
 import '../services/firebase_service.dart';
 
-class CreateSalesInvoiceScreen extends StatefulWidget {
-  const CreateSalesInvoiceScreen({super.key});
+class EditSalesInvoiceScreen extends StatefulWidget {
+  final SalesInvoice invoice;
+
+  const EditSalesInvoiceScreen({super.key, required this.invoice});
 
   @override
-  State<CreateSalesInvoiceScreen> createState() =>
-      _CreateSalesInvoiceScreenState();
+  State<EditSalesInvoiceScreen> createState() => _EditSalesInvoiceScreenState();
 }
 
-class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
+class _EditSalesInvoiceScreenState extends State<EditSalesInvoiceScreen> {
   Party? _selectedParty;
   DateTime _invoiceDate = DateTime.now();
   final _invoiceNumberController = TextEditingController();
-  final _salesPersonNameController = TextEditingController(); // New controller
+  final _salesPersonNameController = TextEditingController();
   final List<_InvoiceLineItem> _lineItems = [];
   bool _isLoading = false;
   double _discount = 0.0;
-  bool _isMarkedAsPaid = false;
-
-  final _partySearchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _generateInvoiceNumber();
+    _loadInvoiceData();
   }
 
-  void _generateInvoiceNumber() async {
-    setState(() => _invoiceNumberController.text = 'Loading...');
-    final invoiceNumber = await FirebaseService.generateSalesInvoiceNumber();
+  Future<void> _loadInvoiceData() async {
+    // Load party
+    final party = await FirebaseService.getPartyById(widget.invoice.partyId);
+    
     setState(() {
-      _invoiceNumberController.text = invoiceNumber;
+      _selectedParty = party;
+      _invoiceDate = widget.invoice.invoiceDate;
+      _invoiceNumberController.text = widget.invoice.invoiceNumber;
+      _salesPersonNameController.text = widget.invoice.salesPersonName;
+      _discount = widget.invoice.discount;
+      
+      // Load items
+      _lineItems.clear();
+      for (var item in widget.invoice.items) {
+        _lineItems.add(_InvoiceLineItem(
+          itemId: item.itemId,
+          itemName: item.itemName,
+          hsnCode: item.hsnCode,
+          quantity: item.quantity,
+          price: item.price,
+          gstPercent: item.gstPercent,
+          description: item.description,
+        ));
+      }
     });
   }
 
@@ -66,8 +81,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
   @override
   void dispose() {
     _invoiceNumberController.dispose();
-    _salesPersonNameController.dispose(); // Dispose new controller
-    _partySearchController.dispose();
+    _salesPersonNameController.dispose();
     super.dispose();
   }
 
@@ -87,7 +101,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Create Sales Invoice'),
+        title: const Text('Edit Sales Invoice'),
         backgroundColor: Colors.purple,
         foregroundColor: Colors.white,
         elevation: 0,
@@ -95,9 +109,9 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
           IconButton(
             icon: const Icon(Icons.save_rounded),
             onPressed: _selectedParty != null && _lineItems.isNotEmpty
-                ? _saveSalesInvoice
+                ? _updateSalesInvoice
                 : null,
-            tooltip: 'Save Invoice',
+            tooltip: 'Update Invoice',
           ),
         ],
       ),
@@ -141,45 +155,11 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                           ),
                         ],
                       ),
-                      ElevatedButton.icon(
-                        onPressed: _showPartySelectionDialog,
-                        icon: Icon(_selectedParty == null ? Icons.add : Icons.edit, size: 18),
-                        label: Text(_selectedParty == null ? 'Select Party' : 'Change'),
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                        ),
-                      ),
                     ],
                   ),
                   if (_selectedParty != null) ...[
                     const SizedBox(height: 16),
                     _buildPartyDetails(_selectedParty!),
-                  ] else ...[
-                    const SizedBox(height: 16),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[100],
-                        borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: Colors.grey[300]!),
-                      ),
-                      child: Center(
-                        child: Column(
-                          children: [
-                            Icon(Icons.person_add, size: 40, color: Colors.grey[400]),
-                            const SizedBox(height: 8),
-                            Text(
-                              'No party selected',
-                              style: TextStyle(color: Colors.grey[600]),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
                   ],
                 ],
               ),
@@ -224,6 +204,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                             ),
                             prefixIcon: const Icon(Icons.tag),
                           ),
+                          readOnly: true, // Can't change invoice number
                         ),
                       ),
                       const SizedBox(width: 16),
@@ -248,7 +229,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                     ],
                   ),
                   const SizedBox(height: 16),
-                  // New Salesperson Name Field
+                  // Salesperson Name Field
                   TextFormField(
                     controller: _salesPersonNameController,
                     decoration: InputDecoration(
@@ -308,7 +289,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                   ),
                   const SizedBox(height: 16),
 
-                  // Horizontally Scrollable Items Table
+                  // Items Table
                   if (_lineItems.isNotEmpty)
                     Container(
                       decoration: BoxDecoration(
@@ -545,6 +526,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                                 borderRadius: BorderRadius.circular(8),
                               ),
                             ),
+                            controller: TextEditingController(text: _discount.toString()),
                             keyboardType: TextInputType.number,
                             onChanged: (val) {
                               setState(() {
@@ -554,30 +536,6 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                           ),
                         ),
                       ],
-                    ),
-                    const SizedBox(height: 12),
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.purple[50],
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                      child: CheckboxListTile(
-                        title: const Text(
-                          'Mark as Paid',
-                          style: TextStyle(fontWeight: FontWeight.w600),
-                        ),
-                        subtitle: const Text(
-                          'Invoice amount will be received immediately',
-                          style: TextStyle(fontSize: 12),
-                        ),
-                        value: _isMarkedAsPaid,
-                        activeColor: Colors.purple,
-                        onChanged: (value) {
-                          setState(() {
-                            _isMarkedAsPaid = value ?? false;
-                          });
-                        },
-                      ),
                     ),
                     const Padding(
                       padding: EdgeInsets.symmetric(vertical: 12),
@@ -610,7 +568,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
               ),
               child: ElevatedButton(
                 onPressed: _selectedParty != null && !_isLoading
-                    ? _saveSalesInvoice
+                    ? _updateSalesInvoice
                     : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.purple,
@@ -636,7 +594,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                           const Icon(Icons.check_circle_outline),
                           const SizedBox(width: 8),
                           Text(
-                            'Save Invoice - ₹${(_grandTotal - _discount).toStringAsFixed(2)}',
+                            'Update Invoice - ₹${(_grandTotal - _discount).toStringAsFixed(2)}',
                             style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                           ),
                         ],
@@ -762,162 +720,6 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
     );
   }
 
-  void _showPartySelectionDialog() {
-    _partySearchController.clear();
-    final FocusNode searchFocusNode = FocusNode();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(child: CircularProgressIndicator()),
-    );
-
-    FirebaseService.getParties().first.then((parties) {
-      Navigator.pop(context);
-
-      List<Party> filteredParties = List.from(parties);
-
-      showDialog(
-        context: context,
-        builder: (context) => StatefulBuilder(
-          builder: (context, setDialogState) {
-            WidgetsBinding.instance.addPostFrameCallback((_) {
-              searchFocusNode.requestFocus();
-            });
-
-            return AlertDialog(
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-              title: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Select Party', style: TextStyle(fontSize: 20)),
-                  const SizedBox(height: 12),
-                  ElevatedButton.icon(
-                    icon: const Icon(Icons.add, size: 18),
-                    label: const Text('Add New Party'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.blue,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(8),
-                      ),
-                    ),
-                    onPressed: () async {
-                      Navigator.pop(context);
-                      await Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => const AddEditPartyScreen()),
-                      );
-                    },
-                  ),
-                ],
-              ),
-              content: SizedBox(
-                width: double.maxFinite,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    TextField(
-                      controller: _partySearchController,
-                      focusNode: searchFocusNode,
-                      autofocus: true,
-                      decoration: InputDecoration(
-                        hintText: 'Search name, phone, GST...',
-                        prefixIcon: const Icon(Icons.search),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        filled: true,
-                        fillColor: Colors.grey[50],
-                      ),
-                      onChanged: (value) {
-                        final lower = value.toLowerCase();
-                        setDialogState(() {
-                          filteredParties = parties.where((p) {
-                            return p.name.toLowerCase().contains(lower) ||
-                                p.phone.contains(value) ||
-                                p.gstNumber.toLowerCase().contains(lower);
-                          }).toList();
-                        });
-                      },
-                    ),
-                    const SizedBox(height: 16),
-                    parties.isEmpty
-                        ? const Center(child: Text('No parties found'))
-                        : filteredParties.isEmpty
-                            ? const Center(child: Text('No matching parties'))
-                            : Flexible(
-                                child: ListView.builder(
-                                  shrinkWrap: true,
-                                  itemCount: filteredParties.length,
-                                  itemBuilder: (context, index) {
-                                    final party = filteredParties[index];
-                                    return Card(
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      child: ListTile(
-                                        leading: CircleAvatar(
-                                          backgroundColor: Colors.purple[100],
-                                          child: Text(
-                                            party.name[0].toUpperCase(),
-                                            style: TextStyle(
-                                              color: Colors.purple[700],
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        title: Text(
-                                          party.name,
-                                          style: const TextStyle(fontWeight: FontWeight.w600),
-                                        ),
-                                        subtitle: Column(
-                                          crossAxisAlignment: CrossAxisAlignment.start,
-                                          children: [
-                                            Text(party.phone),
-                                            if (party.gstNumber.isNotEmpty)
-                                              Text(
-                                                'GST: ${party.gstNumber}',
-                                                style: TextStyle(fontSize: 11, color: Colors.grey[600]),
-                                              ),
-                                          ],
-                                        ),
-                                        onTap: () {
-                                          setState(() {
-                                            _selectedParty = party;
-                                          });
-                                          Navigator.pop(context);
-                                        },
-                                      ),
-                                    );
-                                  },
-                                ),
-                              ),
-                  ],
-                ),
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () {
-                    _partySearchController.clear();
-                    Navigator.pop(context);
-                  },
-                  child: const Text('Cancel'),
-                ),
-              ],
-            );
-          },
-        ),
-      ).then((_) {
-        searchFocusNode.dispose();
-      });
-    }).catchError((e) {
-      Navigator.pop(context);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error loading parties: $e')),
-      );
-    });
-  }
-
   void _showAddItemDialog() {
     showDialog(
       context: context,
@@ -929,7 +731,28 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
           }
 
           final items = snapshot.data ?? [];
-          final availableItems = items.where((item) => item.currentStock > 0).toList();
+          
+          // When editing, we need to consider currently selected items
+          // and add back their quantity to available stock for display
+          final availableItems = items.where((item) {
+            // Find if this item is already in the invoice
+            final existingItem = widget.invoice.items.firstWhere(
+              (invItem) => invItem.itemId == item.id,
+              orElse: () => InvoiceItem(
+                itemId: '',
+                itemName: '',
+                hsnCode: '',
+                quantity: 0,
+                price: 0,
+                gstPercent: 0,
+                description: '',
+              ),
+            );
+            
+            // Add back the quantity that was originally in the invoice
+            final effectiveStock = item.currentStock + existingItem.quantity;
+            return effectiveStock > 0;
+          }).toList();
 
           return AlertDialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -952,6 +775,22 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                       itemCount: availableItems.length,
                       itemBuilder: (context, index) {
                         final item = availableItems[index];
+                        
+                        // Calculate effective stock for display
+                        final existingItem = widget.invoice.items.firstWhere(
+                          (invItem) => invItem.itemId == item.id,
+                          orElse: () => InvoiceItem(
+                            itemId: '',
+                            itemName: '',
+                            hsnCode: '',
+                            quantity: 0,
+                            price: 0,
+                            gstPercent: 0,
+                            description: '',
+                          ),
+                        );
+                        final effectiveStock = item.currentStock + existingItem.quantity;
+                        
                         return Card(
                           margin: const EdgeInsets.only(bottom: 8),
                           child: ListTile(
@@ -971,7 +810,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                             subtitle: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Stock: ${item.currentStock.toStringAsFixed(0)}'),
+                                Text('Stock: ${effectiveStock.toStringAsFixed(0)}'),
                                 Text(
                                   '₹${item.sellingPrice.toStringAsFixed(2)} | GST: ${item.gstPercent}%',
                                   style: TextStyle(fontSize: 12, color: Colors.grey[600]),
@@ -981,7 +820,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                             trailing: const Icon(Icons.arrow_forward_ios, size: 16),
                             onTap: () {
                               Navigator.pop(context);
-                              _showQuantityDialog(item);
+                              _showQuantityDialog(item, effectiveStock);
                             },
                           ),
                         );
@@ -1000,7 +839,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
     );
   }
 
-  void _showQuantityDialog(Item item) {
+  void _showQuantityDialog(Item item, double effectiveStock) {
     final quantityController = TextEditingController(text: '1');
     final priceController = TextEditingController(text: item.sellingPrice.toString());
     final descriptionController = TextEditingController();
@@ -1046,7 +885,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                     Icon(Icons.check_circle, color: Colors.green[700], size: 20),
                     const SizedBox(width: 8),
                     Text(
-                      'Available Stock: ${item.currentStock.toStringAsFixed(0)}',
+                      'Available Stock: ${effectiveStock.toStringAsFixed(0)}',
                       style: TextStyle(
                         color: Colors.green[700],
                         fontWeight: FontWeight.bold,
@@ -1120,11 +959,11 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
                 return;
               }
 
-              if (quantity > item.currentStock) {
+              if (quantity > effectiveStock) {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                        'Insufficient stock! Available: ${item.currentStock.toStringAsFixed(0)}'),
+                        'Insufficient stock! Available: ${effectiveStock.toStringAsFixed(0)}'),
                     backgroundColor: Colors.red,
                   ),
                 );
@@ -1172,7 +1011,7 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
     }
   }
 
-  Future<void> _saveSalesInvoice() async {
+  Future<void> _updateSalesInvoice() async {
     if (_selectedParty == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a party')),
@@ -1191,123 +1030,171 @@ class _CreateSalesInvoiceScreenState extends State<CreateSalesInvoiceScreen> {
       _isLoading = true;
     });
 
-    final invoiceItems = _lineItems
-        .map((item) => InvoiceItem(
-              itemId: item.itemId,
-              itemName: item.itemName,
-              hsnCode: item.hsnCode,
-              quantity: item.quantity,
-              price: item.price,
-              gstPercent: item.gstPercent,
-              description: item.description,
-            ))
-        .toList();
+    try {
+      final invoiceItems = _lineItems
+          .map((item) => InvoiceItem(
+                itemId: item.itemId,
+                itemName: item.itemName,
+                hsnCode: item.hsnCode,
+                quantity: item.quantity,
+                price: item.price,
+                gstPercent: item.gstPercent,
+                description: item.description,
+              ))
+          .toList();
 
-    final invoiceId = const Uuid().v4();
-    final invoice = SalesInvoice(
-      id: invoiceId,
-      partyId: _selectedParty!.id,
-      partyName: _selectedParty!.name,
-      items: invoiceItems,
-      invoiceDate: _invoiceDate,
-      invoiceNumber: _invoiceNumberController.text,
-      createdAt: DateTime.now(),
-      discount: _discount,
-      salesPersonName: _salesPersonNameController.text.trim(), // Add salesperson name
-    );
-
-    final result = await FirebaseService.createSalesInvoice(invoice);
-
-    if (!_isMarkedAsPaid) {
-      final finalAmount = (_grandTotal - _discount).clamp(0, double.infinity);
-      await FirebaseService.updatePartyBalance(
-        _selectedParty!.id,
-        finalAmount.toDouble(),
-        _invoiceNumberController.text,
-        isCredit: true,
+      final updatedInvoice = SalesInvoice(
+        id: widget.invoice.id,
+        partyId: _selectedParty!.id,
+        partyName: _selectedParty!.name,
+        items: invoiceItems,
+        invoiceDate: _invoiceDate,
+        invoiceNumber: _invoiceNumberController.text,
+        createdAt: widget.invoice.createdAt,
+        discount: _discount,
+        salesPersonName: _salesPersonNameController.text.trim(),
       );
-    }
 
-    final transaction = Transaction(
-      id: const Uuid().v4(),
-      invoiceId: invoiceId,
-      invoiceNumber: _invoiceNumberController.text,
-      type: TransactionType.sale,
-      partyId: _selectedParty!.id,
-      partyName: _selectedParty!.name,
-      amount: _grandTotal,
-      subtotal: _subtotal,
-      gstAmount: _totalGST,
-      discount: _discount,
-      itemCount: _lineItems.length,
-      transactionDate: _invoiceDate,
-      createdAt: DateTime.now(),
-      isPaid: _isMarkedAsPaid,
-      paymentMethod: _isMarkedAsPaid ? 'Cash' : null,
-    );
+      // Update invoice with inventory handling
+      final result = await FirebaseService.updateSalesInvoice(
+        updatedInvoice,
+        widget.invoice,
+      );
 
-    await FirebaseService.createTransaction(transaction);
+      // Update party balance
+      final oldAmount = widget.invoice.grandTotal;
+      final newAmount = updatedInvoice.grandTotal;
+      final balanceDifference = newAmount - oldAmount;
 
-    setState(() {
-      _isLoading = false;
-    });
+      if (balanceDifference != 0) {
+        // Get current party balance
+        final partyDoc = await FirebaseFirestore.instance
+            .collection('parties')
+            .doc(_selectedParty!.id)
+            .get();
 
-    if (mounted) {
-      if (result.contains('successfully')) {
-        showDialog(
-          context: context,
-          builder: (context) => AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: Colors.green[50],
-                    borderRadius: BorderRadius.circular(8),
+        if (partyDoc.exists) {
+          final partyData = partyDoc.data();
+          if (partyData != null) {
+            double currentBalance = (partyData['balance'] ?? 0).toDouble();
+            List<String> transactionHistory =
+                List<String>.from(partyData['transactionHistory'] ?? []);
+
+            // Remove old transaction entry
+            transactionHistory.removeWhere((entry) {
+              return entry.contains('Invoice: ${widget.invoice.invoiceNumber}');
+            });
+
+            // Add new transaction entry
+            final newBalance = currentBalance + balanceDifference;
+            final historyEntry =
+                '+₹${newAmount.abs().toStringAsFixed(2)} - Invoice: ${widget.invoice.invoiceNumber} (Updated)';
+            transactionHistory.add(historyEntry);
+
+            await FirebaseFirestore.instance
+                .collection('parties')
+                .doc(_selectedParty!.id)
+                .update({
+              'balance': newBalance,
+              'transactionHistory': transactionHistory,
+              'updatedAt': FieldValue.serverTimestamp(),
+            });
+          }
+        }
+      }
+
+      // Update transaction record
+      final transactionQuery = await FirebaseFirestore.instance
+          .collection('transactions')
+          .where('invoiceId', isEqualTo: widget.invoice.id)
+          .get();
+
+      if (transactionQuery.docs.isNotEmpty) {
+        final transactionDoc = transactionQuery.docs.first;
+        await FirebaseService.updateTransaction(
+          transactionDoc.id,
+          newAmount,
+          transactionDoc.data()['isPaid'] ?? false,
+          transactionDoc.data()['paymentMethod'],
+          _discount,
+          _lineItems.length,
+        );
+      }
+
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (mounted) {
+        if (result.contains('successfully')) {
+          showDialog(
+            context: context,
+            builder: (context) => AlertDialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+              title: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.green[50],
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.check_circle, color: Colors.green[700], size: 30),
                   ),
-                  child: Icon(Icons.check_circle, color: Colors.green[700], size: 30),
+                  const SizedBox(width: 12),
+                  const Text('Success!'),
+                ],
+              ),
+              content: const Text(
+                'Sales invoice updated successfully.',
+                style: TextStyle(fontSize: 15),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    Navigator.pop(context);
+                  },
+                  child: const Text('OK'),
                 ),
-                const SizedBox(width: 12),
-                const Text('Success!'),
+                ElevatedButton.icon(
+                  onPressed: () async {
+                    Navigator.pop(context);
+                    await _downloadPdf(updatedInvoice);
+                    if (mounted) {
+                      Navigator.pop(context);
+                    }
+                  },
+                  icon: const Icon(Icons.picture_as_pdf),
+                  label: const Text('Download PDF'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.purple,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                  ),
+                ),
               ],
             ),
-            content: const Text(
-              'Sales invoice created and inventory updated successfully.',
-              style: TextStyle(fontSize: 15),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.pop(context);
-                },
-                child: const Text('OK'),
-              ),
-              ElevatedButton.icon(
-                onPressed: () async {
-                  Navigator.pop(context);
-                  await _downloadPdf(invoice);
-                  if (mounted) {
-                    Navigator.pop(context);
-                  }
-                },
-                icon: const Icon(Icons.picture_as_pdf),
-                label: const Text('Download PDF'),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.purple,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-              ),
-            ],
-          ),
-        );
-      } else {
+          );
+        } else {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(result)),
+          );
+        }
+      }
+    } catch (e) {
+      setState(() {
+        _isLoading = false;
+      });
+      
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(result)),
+          SnackBar(
+            content: Text('Error updating invoice: $e'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }

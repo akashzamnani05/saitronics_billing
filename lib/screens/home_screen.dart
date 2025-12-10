@@ -14,6 +14,7 @@ import 'purchase_invoices_list_screen.dart';
 import 'sales_invoice_list_screen.dart';
 import 'items_screen.dart';
 import 'parties_screen.dart';
+import 'today_sales_invoices_screen.dart'; // Import the new screen
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -98,6 +99,7 @@ class HomeScreen extends StatelessWidget {
                       icon: Icons.shopping_cart,
                       amountBuilder: (invoices) => invoices.fold(0.0, (s, i) => s + i.total),
                       gstBuilder: (invoices) => invoices.fold(0.0, (s, i) => s + i.totalGst),
+                      onTap: null, // Can add purchase screen later if needed
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -111,6 +113,17 @@ class HomeScreen extends StatelessWidget {
                       icon: Icons.point_of_sale,
                       amountBuilder: (invoices) => invoices.fold(0.0, (s, i) => s + i.grandTotal),
                       gstBuilder: (invoices) => invoices.fold(0.0, (s, i) => s + i.totalGst),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (_) => TodaySalesInvoicesScreen(
+                              startDate: startOfDay,
+                              endDate: endOfDay,
+                            ),
+                          ),
+                        );
+                      },
                     ),
                   ),
                 ],
@@ -250,6 +263,7 @@ class _TodayCard extends StatelessWidget {
   final IconData icon;
   final double Function(List<dynamic>) amountBuilder;
   final double Function(List<dynamic>) gstBuilder;
+  final VoidCallback? onTap; // Add onTap callback
 
   const _TodayCard({
     required this.title,
@@ -260,69 +274,82 @@ class _TodayCard extends StatelessWidget {
     required this.icon,
     required this.amountBuilder,
     required this.gstBuilder,
+    this.onTap, // Optional onTap
   });
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      elevation: 4,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
-          stream: FirebaseFirestore.instance
-              .collection(collection)
-              .where('invoiceDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
-              .where('invoiceDate', isLessThanOrEqualTo: Timestamp.fromDate(end))
-              .snapshots(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator(strokeWidth: 2));
-            }
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Card(
+        elevation: 4,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: StreamBuilder<QuerySnapshot<Map<String, dynamic>>>(
+            stream: FirebaseFirestore.instance
+                .collection(collection)
+                .where('invoiceDate', isGreaterThanOrEqualTo: Timestamp.fromDate(start))
+                .where('invoiceDate', isLessThanOrEqualTo: Timestamp.fromDate(end))
+                .snapshots(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator(strokeWidth: 2));
+              }
 
-            final docs = snapshot.data!.docs;
-            final invoices = collection == 'purchase_invoices'
-                ? docs.map((d) => PurchaseInvoice.fromMap(d.data())).toList()
-                : docs.map((d) => SalesInvoice.fromMap(d.data())).toList();
+              final docs = snapshot.data!.docs;
+              final invoices = collection == 'purchase_invoices'
+                  ? docs.map((d) => PurchaseInvoice.fromMap(d.data())).toList()
+                  : docs.map((d) => SalesInvoice.fromMap(d.data())).toList();
 
-            final count = invoices.length;
-            final amount = amountBuilder(invoices);
-            final gst = gstBuilder(invoices);
+              final count = invoices.length;
+              final amount = amountBuilder(invoices);
+              final gst = gstBuilder(invoices);
 
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Icon(icon, color: color, size: 28),
-                    const SizedBox(width: 8),
-                    Text(
-                      title,
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                        color: color,
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Icon(icon, color: color, size: 28),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: color,
+                          ),
+                        ),
                       ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  '$count invoice${count == 1 ? '' : 's'}',
-                  style: const TextStyle(fontSize: 13, color: Colors.grey),
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  _currency.format(amount),
-                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                ),
-                Text(
-                  'GST: ${_currency.format(gst)}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
-                ),
-              ],
-            );
-          },
+                      if (onTap != null)
+                        Icon(
+                          Icons.arrow_forward_ios,
+                          size: 16,
+                          color: color.withOpacity(0.6),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    '$count invoice${count == 1 ? '' : 's'}',
+                    style: const TextStyle(fontSize: 13, color: Colors.grey),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    _currency.format(amount),
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  Text(
+                    'GST: ${_currency.format(gst)}',
+                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
